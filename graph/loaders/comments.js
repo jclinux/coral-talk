@@ -4,6 +4,10 @@ const {
   arrayJoinBy
 } = require('./util');
 const DataLoader = require('dataloader');
+const {
+  SEARCH_NON_NULL_OR_ACCEPTED_COMMENTS,
+  SEARCH_OTHERS_COMMENTS
+} = require('../../perms/constants');
 
 const CommentModel = require('../../models/comment');
 const UsersService = require('../../services/users');
@@ -120,8 +124,8 @@ const getParentCountByAssetIDPersonalized = async (context, {assetId, excludeIgn
     const ignoredUsers = freshUser.ignoresUsers;
     query.author_id = {$nin: ignoredUsers};
   }
-  const count = await CommentModel.where(query).count();
-  return count;
+
+  return CommentModel.where(query).count();
 };
 
 /**
@@ -191,7 +195,7 @@ const getCountByParentIDPersonalized = async (context, {id, excludeIgnored}) => 
  * @return {Promise}          resolves to the counts of the comments from the
  *                            query
  */
-const getCommentCountByQuery = (context, {ids, statuses, asset_id, parent_id}) => {
+const getCommentCountByQuery = (context, {ids, statuses, asset_id, parent_id, author_id}) => {
   let query = CommentModel.find();
 
   if (ids) {
@@ -210,6 +214,10 @@ const getCommentCountByQuery = (context, {ids, statuses, asset_id, parent_id}) =
     query = query.where({parent_id});
   }
 
+  if (author_id) {
+    query = query.where({author_id});
+  }
+
   return CommentModel
     .find(query)
     .count();
@@ -226,7 +234,7 @@ const getCommentsByQuery = async ({user}, {ids, statuses, asset_id, parent_id, a
 
   // Only administrators can search for comments with statuses that are not
   // `null`, or `'ACCEPTED'`.
-  if (user != null && user.hasRoles('ADMIN') && statuses) {
+  if (user != null && user.can(SEARCH_NON_NULL_OR_ACCEPTED_COMMENTS) && statuses) {
     comments = comments.where({
       status: {
         $in: statuses
@@ -249,7 +257,7 @@ const getCommentsByQuery = async ({user}, {ids, statuses, asset_id, parent_id, a
   }
 
   // Only let an admin request any user or the current user request themself.
-  if (user && (user.hasRoles('ADMIN') || user.id === author_id) && author_id != null) {
+  if (user && (user.can(SEARCH_OTHERS_COMMENTS) || user.id === author_id) && author_id != null) {
     comments = comments.where({author_id});
   }
 
@@ -263,13 +271,9 @@ const getCommentsByQuery = async ({user}, {ids, statuses, asset_id, parent_id, a
     comments = comments.where({parent_id});
   }
 
-  if (excludeIgnored && user) {
-
-    // load afresh, as `user` may be from cache and not have recent ignores
-    const freshUser = await UsersService.findById(user.id);
-    const ignoredUsers = freshUser.ignoresUsers;
+  if (excludeIgnored && user && user.ignoresUsers) {
     comments = comments.where({
-      author_id: {$nin: ignoredUsers}
+      author_id: {$nin: user.ignoresUsers}
     });
   }
 
@@ -289,9 +293,24 @@ const getCommentsByQuery = async ({user}, {ids, statuses, asset_id, parent_id, a
     }
   }
 
-  return comments
-    .sort({created_at: sort === 'REVERSE_CHRONOLOGICAL' ? -1 : 1})
-    .limit(limit);
+  let query = comments
+    .sort({created_at: sort === 'REVERSE_CHRONOLOGICAL' ? -1 : 1});
+  if (limit) {
+    query = query.limit(limit + 1);
+  }
+  return query.then((nodes) => {
+    let hasNextPage = false;
+    if (limit && nodes.length > limit) {
+      hasNextPage = true;
+      nodes.splice(limit, 1);
+    }
+    return Promise.resolve({
+      startCursor: nodes.length ? nodes[0].created_at : null,
+      endCursor: nodes.length ? nodes[nodes.length - 1].created_at : null,
+      hasNextPage,
+      nodes,
+    });
+  });
 };
 
 /**
@@ -403,7 +422,7 @@ const genRecentComments = (_, ids) => {
  */
 const genComments = ({user}, ids) => {
   let comments;
-  if (user && user.hasRoles('ADMIN')) {
+  if (user && user.can(SEARCH_OTHERS_COMMENTS)) {
     comments = CommentModel.find({
       id: {
         $in: ids

@@ -1,38 +1,28 @@
-import {compose, gql, graphql} from 'react-apollo';
+import {compose, gql} from 'react-apollo';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import get from 'lodash/get';
-
+import {withFragments, withMutation} from 'coral-framework/hocs';
 import {showSignInDialog} from 'coral-framework/actions/auth';
 import RespectButton from '../components/RespectButton';
 
-// TODO: use `update` instead of `updateQueries` for optimistic mutations.
-// See https://dev-blog.apollodata.com/apollo-clients-new-imperative-store-api-6cb69318a1e3
-// and https://github.com/apollographql/apollo-client/issues/1224
+const isRespectAction = (a) => a.__typename === 'RespectActionSummary';
 
-export const RESPECT_QUERY = gql`
-  query RespectQuery($commentId: ID!) {
-    comment(id: $commentId) {
-      id
-      action_summaries {
-        ... on RespectActionSummary {
-          count
-          current_user {
-            id
-          }
+const COMMENT_FRAGMENT = gql`
+  fragment CoralRespect_UpdateFragment on Comment {
+    action_summaries {
+      ... on RespectActionSummary {
+        count
+        current_user {
+          id
         }
       }
-    }
-    me {
-      status
     }
   }
 `;
 
-const withQuery = graphql(RESPECT_QUERY);
-
-const withDeleteAction = graphql(gql`
-  mutation deleteAction($id: ID!) {
+const withDeleteAction = withMutation(gql`
+  mutation CoralRespect_DeleteAction($id: ID!) {
       deleteAction(id:$id) {
         errors {
           translation_key
@@ -41,7 +31,7 @@ const withDeleteAction = graphql(gql`
   }
 `, {
   props: ({mutate}) => ({
-    deleteAction: (id) => {
+    deleteAction: (id, commentId) => {
       return mutate({
         variables: {id},
         optimisticResponse: {
@@ -50,32 +40,34 @@ const withDeleteAction = graphql(gql`
             errors: null,
           }
         },
-        updateQueries: {
-          RespectQuery: (prev) => {
-            if (get(prev, 'comment.action_summaries.0.current_user.id') !== id) {
-              return prev;
-            }
-            const next = {
-              ...prev,
-              comment: {
-                ...prev.comment,
-                action_summaries: [{
-                  __typename: 'RespectActionSummary',
-                  count: prev.comment.action_summaries[0].count - 1,
-                  current_user: null,
-                }],
-              }
-            };
-            return next;
-          },
+        update: (proxy) => {
+          const fragmentId = `Comment_${commentId}`;
+
+          // Read the data from our cache for this query.
+          const data = proxy.readFragment({fragment: COMMENT_FRAGMENT, id: fragmentId});
+
+          // Check whether we respected this comment.
+          const idx = data.action_summaries.findIndex(isRespectAction);
+          if (idx < 0 || get(data.action_summaries[idx], 'current_user.id') !== id) {
+            return;
+          }
+
+          data.action_summaries[idx] = {
+            ...data.action_summaries[idx],
+            count: data.action_summaries[idx].count - 1,
+            current_user: null,
+          };
+
+          // Write our data back to the cache.
+          proxy.writeFragment({fragment: COMMENT_FRAGMENT, id: fragmentId, data});
         },
       });
     },
   }),
 });
 
-const withPostRespect = graphql(gql`
-  mutation createRespect($respect: CreateRespectInput!) {
+const withPostRespect = withMutation(gql`
+  mutation CoralRespect_CreateRespect($respect: CreateRespectInput!) {
     createRespect(respect: $respect) {
       respect {
         id
@@ -100,42 +92,72 @@ const withPostRespect = graphql(gql`
             },
           }
         },
-        updateQueries: {
-          RespectQuery: (prev, {mutationResult, queryVariables}) => {
-            if (queryVariables.commentId !== respect.item_id ||
-                get(prev, 'comment.action_summaries.0.current_user')) {
-              return prev;
-            }
-            const respectAction = mutationResult.data.createRespect.respect;
-            const count = prev.comment.action_summaries[0] ? prev.comment.action_summaries[0].count : 0;
-            const next = {
-              ...prev,
-              comment: {
-                ...prev.comment,
-                action_summaries: [{
-                  __typename: 'RespectActionSummary',
-                  count: count + 1,
-                  current_user: respectAction,
-                }],
-              }
-            };
-            return next;
-          },
+        update: (proxy, mutationResult) => {
+          const fragmentId = `Comment_${respect.item_id}`;
+
+          // Read the data from our cache for this query.
+          const data = proxy.readFragment({fragment: COMMENT_FRAGMENT, id: fragmentId});
+
+          // Add our comment from the mutation to the end.
+          let idx = data.action_summaries.findIndex(isRespectAction);
+
+          // Check whether we already respected this comment.
+          if (idx >= 0 && data.action_summaries[idx].current_user) {
+            return;
+          }
+
+          if (idx < 0) {
+
+            // Add initial action when it doesn't exist.
+            data.action_summaries.push({
+              __typename: 'RespectActionSummary',
+              count: 0,
+              current_user: null,
+            });
+            idx = data.action_summaries.length - 1;
+          }
+
+          data.action_summaries[idx] = {
+            ...data.action_summaries[idx],
+            count: data.action_summaries[idx].count + 1,
+            current_user: mutationResult.data.createRespect.respect,
+          };
+
+          // Write our data back to the cache.
+          proxy.writeFragment({fragment: COMMENT_FRAGMENT, id: fragmentId, data});
         },
       });
     },
   }),
 });
 
-const mapDispatchToProps = dispatch =>
+const mapDispatchToProps = (dispatch) =>
   bindActionCreators({showSignInDialog}, dispatch);
 
 const enhance = compose(
+  withFragments({
+    root: gql`
+      fragment CoralRespect_RespectButton_root on RootQuery {
+        me {
+          status
+        }
+      }
+    `,
+    comment: gql`
+      fragment CoralRespect_RespectButton_comment on Comment {
+        action_summaries {
+          ... on RespectActionSummary {
+            count
+            current_user {
+              id
+            }
+          }
+        }
+      }`,
+  }),
   connect(null, mapDispatchToProps),
   withDeleteAction,
   withPostRespect,
-  withQuery,
 );
 
 export default enhance(RespectButton);
-

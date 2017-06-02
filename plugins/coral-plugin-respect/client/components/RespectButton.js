@@ -2,25 +2,22 @@ import React, {Component} from 'react';
 import styles from './style.css';
 import Icon from './Icon';
 
-import {I18n} from 'coral-framework';
+import t from 'coral-framework/services/i18n';
 import cn from 'classnames';
-import translations from '../translations.json';
 
-const lang = new I18n(translations);
+import {getMyActionSummary, getTotalActionCount} from 'coral-framework/utils';
 
 class RespectButton extends Component {
 
   handleClick = () => {
-    const {postRespect, showSignInDialog, deleteAction, commentId} = this.props;
-    const {me, comment} = this.props.data;
+    const {postRespect, showSignInDialog, deleteAction} = this.props;
+    const {root: {me}, comment} = this.props;
 
-    const respect = comment.action_summaries[0];
-    const respected = (respect && respect.current_user);
+    const myRespectActionSummary = getMyActionSummary('RespectActionSummary', comment);
 
     // If the current user does not exist, trigger sign in dialog.
     if (!me) {
-      const offset = document.getElementById(`c_${commentId}`).getBoundingClientRect().top - 75;
-      showSignInDialog(offset);
+      showSignInDialog();
       return;
     }
 
@@ -29,29 +26,33 @@ class RespectButton extends Component {
       return;
     }
 
-    if (!respected) {
+    if (myRespectActionSummary) {
+      deleteAction(myRespectActionSummary.current_user.id, comment.id);
+    } else {
       postRespect({
-        item_id: commentId,
+        item_id: comment.id,
         item_type: 'COMMENTS'
       });
-    } else {
-      deleteAction(respect.current_user.id);
     }
   }
 
   render() {
-    const {comment} = this.props.data;
-    const respect = comment && comment.action_summaries && comment.action_summaries[0];
-    const respected = respect && respect.current_user;
-    let count = respect ? respect.count : 0;
+    const {comment} = this.props;
+
+    if (!comment) {
+      return null;
+    }
+
+    const myRespect = getMyActionSummary('RespectActionSummary', comment);
+    let count = getTotalActionCount('RespectActionSummary', comment);
 
     return (
       <div className={styles.respect}>
         <button
-          className={cn(styles.button, {[styles.respected]: respected})}
+          className={cn(styles.button, {[styles.respected]: myRespect})}
           onClick={this.handleClick} >
-          <span>{lang.t(respected ? 'respected' : 'respect')}</span>
-          <Icon className={cn(styles.icon, {[styles.respected]: respected})} />
+          <span>{t(myRespect ? 'respected' : 'respect')}</span>
+          <Icon className={cn(styles.icon, {[styles.respected]: myRespect})} />
           {count > 0 && count}
         </button>
       </div>
@@ -64,4 +65,3 @@ RespectButton.propTypes = {
 };
 
 export default RespectButton;
-

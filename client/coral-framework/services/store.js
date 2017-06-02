@@ -3,7 +3,7 @@ import thunk from 'redux-thunk';
 import mainReducer from '../reducers';
 import {client} from './client';
 
-const apolloErrorReporter = () => next => action => {
+const apolloErrorReporter = () => (next) => (action) => {
   if (action.type === 'APOLLO_QUERY_ERROR') {
     console.error(action.error);
   }
@@ -24,11 +24,29 @@ if (window.devToolsExtension) {
   middlewares.push(window.devToolsExtension());
 }
 
-export default createStore(
-  combineReducers({
+export function injectReducers(reducers) {
+  const store = getStore();
+  store.coralReducers = {...store.coralReducers, ...reducers};
+  store.replaceReducer(combineReducers(store.coralReducers));
+}
+
+export function getStore() {
+  if (window.coralStore) {
+    return window.coralStore;
+  }
+
+  const coralReducers = {
     ...mainReducer,
     apollo: client.reducer()
-  }),
-  {},
-  compose(...middlewares)
-);
+  };
+
+  window.coralStore = createStore(
+    combineReducers(coralReducers),
+    {},
+    compose(...middlewares)
+  );
+
+  window.coralStore.coralReducers = coralReducers;
+
+  return window.coralStore;
+}

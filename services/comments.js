@@ -2,18 +2,9 @@ const CommentModel = require('../models/comment');
 
 const ActionModel = require('../models/action');
 const ActionsService = require('./actions');
+const SettingsService = require('./settings');
 
-const ALLOWED_TAGS = [
-  {name: 'STAFF'},
-  {name: 'BEST'},
-];
-
-const STATUSES = [
-  'ACCEPTED',
-  'REJECTED',
-  'PREMOD',
-  'NONE',
-];
+const errors = require('../errors');
 
 module.exports = class CommentsService {
 
@@ -33,14 +24,88 @@ module.exports = class CommentsService {
       status = 'NONE',
     } = comment;
 
-    comment.status_history = status ? [{
-      type: status,
-      created_at: new Date()
-    }] : [];
-
-    let commentModel = new CommentModel(comment);
+    const commentModel = new CommentModel(Object.assign({
+      status_history: status ? [{
+        type: status,
+        created_at: new Date()
+      }] : [],
+      body_history: [{
+        body: comment.body,
+        created_at: new Date()
+      }]
+    }, comment));
 
     return commentModel.save();
+  }
+
+  /**
+   * Edit a Comment
+   * @param {String} id    comment.id you want to edit (or its ID)
+   * @param {String} author_id     user.id of the user trying to edit the comment (will err if not comment author)
+   * @param {String} body       the new Comment body
+   * @param {String} status     the new Comment status
+   */
+  static async edit(id, author_id, {body, status, ignoreEditWindow = false}) {
+    const query = {
+      id,
+      author_id
+    };
+
+    // Establish the edit window (if it exists) and add the condition to the
+    // original query.
+    let lastEditableCommentCreatedAt;
+    if (!ignoreEditWindow) {
+      const {editCommentWindowLength: editWindowMs} = await SettingsService.retrieve();
+      lastEditableCommentCreatedAt = new Date((new Date()).getTime() - editWindowMs);
+      query.created_at = {
+        $gt: lastEditableCommentCreatedAt,
+      };
+    }
+
+    const {
+      value: comment
+    } = await CommentModel.findOneAndUpdate(query, {
+      $set: {
+        body,
+        status,
+      },
+      $push: {
+        body_history: {
+          body,
+          created_at: new Date(),
+        },
+        status_history: {
+          type: status,
+          created_at: new Date(),
+        }
+      },
+    }, {
+      new: true,
+      rawResult: true
+    });
+
+    if (comment === null) {
+
+      // Try to get the comment.
+      const comment = await CommentsService.findById(id);
+      if (comment === null) {
+        throw errors.ErrNotFound;
+      }
+
+      // Check to see if the user was't allowed to edit it.
+      if (comment.author_id !== author_id) {
+        throw errors.ErrNotAuthorized;
+      }
+
+      // Check to see if the edit window expired.
+      if (!ignoreEditWindow && comment.created_at <= lastEditableCommentCreatedAt) {
+        throw errors.ErrEditWindowHasEnded;
+      }
+
+      throw new Error('comment edit failed for an unexpected reason');
+    }
+
+    return comment;
   }
 
   /**
@@ -53,9 +118,10 @@ module.exports = class CommentsService {
    */
   static addTag(id, name, assigned_by) {
 
-    if (ALLOWED_TAGS.find((t) => t.name === name) == null) {
-      return Promise.reject(new Error('tag not allowed'));
-    }
+    // Disabling allowed tags until we are able to extend them
+    // if (ALLOWED_TAGS.find((t) => t.name === name) == null) {
+    //   return Promise.reject(new Error('tag not allowed'));
+    // }
 
     const filter = {
       id,
@@ -174,7 +240,7 @@ module.exports = class CommentsService {
   static findIdsByActionType(action_type) {
     return ActionsService
       .findCommentsIdByActionType(action_type, 'COMMENTS')
-      .then((actions) => actions.map(a => a.item_id));
+      .then((actions) => actions.map((a) => a.item_id));
   }
 
   /**
@@ -212,7 +278,7 @@ module.exports = class CommentsService {
    * @return {Promise}
    */
   static pushStatus(id, status, assigned_by = null) {
-    return CommentModel.update({id}, {
+    return CommentModel.findOneAndUpdate({id}, {
       $push: {
         status_history: {
           type: status,
@@ -231,7 +297,7 @@ module.exports = class CommentsService {
    * @param {String} action the new action to the comment
    * @return {Promise}
    */
-  static addAction(item_id, user_id, action_type, metadata) {
+  static addAction(item_id, user_id, action_type, metadata = {}) {
     return ActionsService.insertUserAction({
       item_id,
       item_type: 'COMMENTS',
@@ -290,26 +356,5 @@ module.exports = class CommentsService {
     }
 
     return CommentModel.find(query);
-  }
-
-  /**
-   * Sets Comment Status
-   * @param {String} id          identifier of the comment  (uuid)
-   * @param {String} status      the new status of the comment
-   * @return {Promise}
-   */
-
-  static setStatus(id, status) {
-
-    // Check to see if the comment status is in the allowable set of statuses.
-    if (STATUSES.indexOf(status) === -1) {
-
-      // Comment status is not supported! Error out here.
-      return Promise.reject(new Error(`status ${status} is not supported`));
-    }
-
-    return CommentModel.findOneAndUpdate({id}, {
-      $set: {status}
-    });
   }
 };

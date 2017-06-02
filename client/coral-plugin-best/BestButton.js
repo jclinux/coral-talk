@@ -1,26 +1,26 @@
 import React, {Component, PropTypes} from 'react';
-import {I18n} from '../coral-framework';
-import translations from './translations.json';
+
+import t from 'coral-framework/services/i18n';
+
 import {Icon} from 'coral-ui';
 import classnames from 'classnames';
 
 // tag string for best comments
 export const BEST_TAG = 'BEST';
 export const commentIsBest = ({tags} = {}) => {
-  const isBest = Array.isArray(tags) && tags.some(t => t.name === BEST_TAG);
+  const isBest = Array.isArray(tags) && tags.some((t) => t.name === BEST_TAG);
   return isBest;
 };
 
 const name = 'coral-plugin-best';
-const lang = new I18n(translations);
 
 // It would be best if the backend/api held this business logic
-const canModifyBestTag = ({roles = []} = {}) => roles && ['ADMIN', 'MODERATOR'].some(role => roles.includes(role));
+const canModifyBestTag = ({roles = []} = {}) => roles && ['ADMIN', 'MODERATOR'].some((role) => roles.includes(role));
 
 // Put this on a comment to show that it is best
 
 export const BestIndicator = ({children = <Icon name='star'/>}) => (
-  <span aria-label={lang.t('commentIsBest')}>
+  <span aria-label={t('comment_is_best')}>
     { children }
   </span>
 );
@@ -29,7 +29,7 @@ export const BestIndicator = ({children = <Icon name='star'/>}) => (
  * Component that only renders children if the provided user prop can modify best tags
  */
 export const IfUserCanModifyBest = ({user, children}) => {
-  if ( ! ( user && canModifyBestTag(user))) {return null;}
+  if (!(user && canModifyBestTag(user))) {return null;}
   return children;
 };
 
@@ -63,7 +63,7 @@ export class BestButton extends Component {
   async onClickAddBest(e) {
     e.preventDefault();
     const {addBest} = this.props;
-    if ( ! addBest) {
+    if (!addBest) {
       console.warn('BestButton#onClickAddBest called even though there is no addBest prop. doing nothing');
       return;
     }
@@ -78,7 +78,7 @@ export class BestButton extends Component {
   async onClickRemoveBest(e) {
     e.preventDefault();
     const {removeBest} = this.props;
-    if ( ! removeBest) {
+    if (!removeBest) {
       console.warn('BestButton#onClickAddBest called even though there is no removeBest prop. doing nothing');
       return;
     }
@@ -93,12 +93,12 @@ export class BestButton extends Component {
   render() {
     const {isBest, addBest, removeBest} = this.props;
     const {isSaving} = this.state;
-    const disabled = isSaving || ! (isBest ? removeBest : addBest);
+    const disabled = isSaving || !(isBest ? removeBest : addBest);
     return (
       <button onClick={isBest ? this.onClickRemoveBest : this.onClickAddBest}
               disabled={disabled}
               className={classnames(`${name}-button`, `e2e__${isBest ? 'unset' : 'set'}-best-comment`)}
-              aria-label={lang.t(isBest ? 'unsetBest' : 'setBest')}>
+              aria-label={t(isBest ? 'unset_best' : 'set_best')}>
         <Icon name={ isBest ? 'star' : 'star_border' } />
       </button>
     );

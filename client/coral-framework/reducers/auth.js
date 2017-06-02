@@ -1,13 +1,14 @@
 import {Map, fromJS} from 'immutable';
 import * as actions from '../constants/auth';
+import {pym} from 'coral-framework';
 
 const initialState = Map({
   isLoading: false,
   loggedIn: false,
-  isAdmin: false,
   user: null,
   showSignInDialog: false,
   showCreateUsernameDialog: false,
+  checkedInitialLogin: false,
   view: 'SIGNIN',
   error: '',
   passwordRequestSuccess: null,
@@ -16,10 +17,12 @@ const initialState = Map({
   emailVerificationLoading: false,
   emailVerificationSuccess: false,
   successSignUp: false,
-  fromSignUp: false
+  fromSignUp: false,
+  requireEmailConfirmation: false,
+  redirectUri: pym.parentUrl || location.href,
 });
 
-const purge = user => {
+const purge = (user) => {
   const {settings, profiles, ...userData} = user; // eslint-disable-line
   return fromJS(userData);
 };
@@ -28,8 +31,7 @@ export default function auth (state = initialState, action) {
   switch (action.type) {
   case actions.SHOW_SIGNIN_DIALOG :
     return state
-      .set('showSignInDialog', true)
-      .set('signInOffset', action.offset);
+      .set('showSignInDialog', true);
   case actions.HIDE_SIGNIN_DIALOG :
     return state.merge(Map({
       isLoading: false,
@@ -64,25 +66,22 @@ export default function auth (state = initialState, action) {
       .set('view', action.view);
   case actions.CLEAN_STATE:
     return initialState;
-  case actions.CHECK_CSRF_TOKEN:
-    return state
-      .set('_csrf', action._csrf);
   case actions.FETCH_SIGNIN_REQUEST:
     return state
       .set('isLoading', true);
   case actions.CHECK_LOGIN_FAILURE:
     return state
+      .set('checkedInitialLogin', true)
       .set('loggedIn', false)
       .set('user', null);
   case actions.CHECK_LOGIN_SUCCESS:
     return state
+      .set('checkedInitialLogin', true)
       .set('loggedIn', true)
-      .set('isAdmin', action.isAdmin)
       .set('user', purge(action.user));
   case actions.FETCH_SIGNIN_SUCCESS:
     return state
       .set('loggedIn', true)
-      .set('isAdmin', action.isAdmin)
       .set('user', purge(action.user));
   case actions.FETCH_SIGNIN_FAILURE:
     return state
@@ -114,8 +113,11 @@ export default function auth (state = initialState, action) {
     return state
       .set('isLoading', false)
       .set('successSignUp', true);
-  case actions.LOGOUT_SUCCESS:
-    return initialState;
+  case actions.LOGOUT:
+    return state
+      .set('user', null)
+      .set('isLoading', false)
+      .set('loggedIn', false);
   case actions.INVALID_FORM:
     return state
       .set('error', action.error);
@@ -143,6 +145,12 @@ export default function auth (state = initialState, action) {
     return state
       .set('emailVerificationSuccess', true)
       .set('emailVerificationLoading', false);
+  case actions.SET_REQUIRE_EMAIL_VERIFICATION:
+    return state
+      .set('requireEmailConfirmation', action.required);
+  case actions.SET_REDIRECT_URI:
+    return state
+      .set('redirectUri', action.uri);
   default :
     return state;
   }

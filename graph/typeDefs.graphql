@@ -5,6 +5,22 @@
 # Date represented as an ISO8601 string.
 scalar Date
 
+################################################################################
+## Reliability
+################################################################################
+
+# Reliability defines how a given user should be considered reliable for their
+# comment or flag activity.
+type Reliability {
+
+  # flagger will be `true` when the flagger is reliable, `false` if not, or
+  # `null` if the reliability cannot be determined.
+  flagger: Boolean
+
+  # commenter will be `true` when the commenter is reliable, `false` if not, or
+  # `null` if the reliability cannot be determined.
+  commenter: Boolean
+}
 
 ################################################################################
 ## Users
@@ -20,6 +36,14 @@ enum USER_ROLES {
   MODERATOR
 }
 
+type UserProfile {
+  # the id is an identifier for the user profile (email, facebook id, etc)
+  id: String!
+
+  # name of the provider attached to the authentication mode
+  provider: String!
+}
+
 # Any person who can author comments, create actions, and view comments on a
 # stream.
 type User {
@@ -30,23 +54,34 @@ type User {
   # Username of a user.
   username: String!
 
+  # creation date of user
+  created_at: String!
+
   # Action summaries against the user.
-  action_summaries: [ActionSummary]
+  action_summaries: [ActionSummary!]!
 
   # Actions completed on the parent.
-  actions: [Action]
+  actions: [Action!]
 
   # the current roles of the user.
-  roles: [USER_ROLES]
+  roles: [USER_ROLES!]
+
+  # the current profiles of the user.
+  profiles: [UserProfile]
 
   # determines whether the user can edit their username
   canEditName: Boolean
 
-  # returns all comments based on a query.
-  comments(query: CommentsQuery): [Comment]
+  # ignored users.
+  ignoredUsers: [User!]
 
-  # returns all users based on a query.
-  users(query: UsersQuery): [User]
+  # returns all comments based on a query.
+  comments(query: CommentsQuery): CommentConnection!
+
+  # reliable is the reference to a given user's Reliability. If the requesting
+  # user does not have permission to access the reliability, null will be
+  # returned.
+  reliable: Reliability
 
   # returns user status
   status: USER_STATUS
@@ -102,9 +137,6 @@ enum COMMENT_STATUS {
 
 # The types of action there are as enum's.
 enum ACTION_TYPE {
-
-  # Represents a LikeAction.
-  LIKE
 
   # Represents a FlagAction.
   FLAG
@@ -162,8 +194,17 @@ input CommentCountQuery {
   # type.
   action_type: ACTION_TYPE
 
+  # author_id allows the querying of comment counts based on the author of the
+  # comments.
+  author_id: ID
+
   # Filter by a specific tag name.
   tag: [String]
+}
+
+type EditInfo {
+  edited: Boolean!
+  editableUntil: Date
 }
 
 # Comment is the base representation of user interaction in Talk.
@@ -185,10 +226,10 @@ type Comment {
   user: User
 
   # the recent replies made against this comment.
-  recentReplies: [Comment]
+  recentReplies: [Comment!]
 
   # the replies that were made to the comment.
-  replies(sort: SORT_ORDER = CHRONOLOGICAL, limit: Int = 3, excludeIgnored: Boolean): [Comment]
+  replies(sort: SORT_ORDER = CHRONOLOGICAL, limit: Int = 3, excludeIgnored: Boolean): CommentConnection!
 
   # The count of replies on a comment.
   replyCount(excludeIgnored: Boolean): Int
@@ -197,7 +238,7 @@ type Comment {
   actions: [Action]
 
   # Action summaries against a comment.
-  action_summaries: [ActionSummary]
+  action_summaries: [ActionSummary]!
 
   # The asset that a comment was made on.
   asset: Asset
@@ -207,6 +248,25 @@ type Comment {
 
   # The time when the comment was created
   created_at: Date!
+
+  # describes how the comment can be edited
+  editing: EditInfo
+}
+
+# CommentConnection represents a paginable subset of a comment list.
+type CommentConnection {
+
+  # Indicates that there are more comments after this subset.
+  hasNextPage: Boolean!
+
+  # Cursor of first comment in subset.
+  startCursor: Date
+
+  # Cursor of last comment in subset.
+  endCursor: Date
+
+  # Subset of comments.
+  nodes: [Comment!]!
 }
 
 ################################################################################
@@ -215,6 +275,22 @@ type Comment {
 
 # An action rendered against a parent entity item.
 interface Action {
+
+  # The ID of the action.
+  id: ID!
+
+  # The author of the action.
+  user: User
+
+  # The time when the Action was updated.
+  updated_at: Date
+
+  # The time when the Action was created.
+  created_at: Date
+}
+
+# DefaultAction is the Action provided for undefined types.
+type DefaultAction implements Action {
 
   # The ID of the action.
   id: ID!
@@ -239,8 +315,28 @@ interface ActionSummary {
   current_user: Action
 }
 
+# DefaultActionSummary is the ActionSummary provided for undefined types.
+type DefaultActionSummary implements ActionSummary {
+
+  # The count of actions with this group.
+  count: Int
+
+  # The current user's action.
+  current_user: Action
+}
+
 # A summary of actions for a specific action type on an Asset.
 interface AssetActionSummary {
+
+  # Number of actions associated with actionable types on this this Asset.
+  actionCount: Int
+
+  # Number of unique actionable types that are referenced by the actions.
+  actionableItemCount: Int
+}
+
+# DefaultAssetActionSummary is the AssetActionSummary provided for undefined types.
+type DefaultAssetActionSummary implements AssetActionSummary {
 
   # Number of actions associated with actionable types on this this Asset.
   actionCount: Int
@@ -257,41 +353,6 @@ type FlagAssetActionSummary implements AssetActionSummary {
 
   # Number of unique actionable types that are referenced by the flags.
   actionableItemCount: Int
-}
-
-# A summary of counts related to all the Likes on an Asset.
-type LikeAssetActionSummary implements AssetActionSummary {
-
-  # Number of likes associated with actionable types on this this Asset.
-  actionCount: Int
-
-  # Number of unique actionable types that are referenced by the likes.
-  actionableItemCount: Int
-}
-
-# LikeAction is used by users who "like" a specific entity.
-type LikeAction implements Action {
-
-  # The ID of the action.
-  id: ID!
-
-  # The author of the action.
-  user: User
-
-  # The time when the Action was updated.
-  updated_at: Date
-
-  # The time when the Action was created.
-  created_at: Date
-}
-
-# LikeActionSummary is counts the amount of "likes" that a specific entity has.
-type LikeActionSummary implements ActionSummary {
-
-  # The count of likes against the parent entity.
-  count: Int!
-
-  current_user: LikeAction
 }
 
 # A FLAG action that contains flag metadata.
@@ -398,6 +459,7 @@ type Settings {
   charCountEnable: Boolean
   charCount: Int
 
+  organizationName: String
 }
 
 ################################################################################
@@ -416,14 +478,11 @@ type Asset {
   # The URL that the asset is located on.
   url: String
 
-  # Returns last comment
-  lastComment: Comment
-
   # Returns recent comments
-  recentComments: [Comment]
+  recentComments: [Comment!]
 
   # The top level comments that are attached to the asset.
-  comments(sort: SORT_ORDER = REVERSE_CHRONOLOGICAL, limit: Int = 10, excludeIgnored: Boolean): [Comment]
+  comments(sort: SORT_ORDER = REVERSE_CHRONOLOGICAL, limit: Int = 10, excludeIgnored: Boolean): CommentConnection!
 
   # The count of top level comments on the asset.
   commentCount(excludeIgnored: Boolean): Int
@@ -440,7 +499,7 @@ type Asset {
 
   # Summary of all Actions against all entities associated with the Asset.
   # (likes, flags, etc.). Requires the `ADMIN` role.
-  action_summaries: [AssetActionSummary]
+  action_summaries: [AssetActionSummary!]
 
   # The date that the asset was created.
   created_at: Date
@@ -505,9 +564,6 @@ enum USER_STATUS {
 # Metrics for the assets.
 enum ASSET_METRICS_SORT {
 
-  # Represents a LikeAction.
-  LIKE
-
   # Represents a FlagAction.
   FLAG
 
@@ -533,7 +589,7 @@ type RootQuery {
   asset(id: ID, url: String): Asset
 
   # Comments returned based on a query.
-  comments(query: CommentsQuery!): [Comment]
+  comments(query: CommentsQuery!): CommentConnection
 
   # Return the count of comments satisfied by the query. Note that this edge is
   # expensive as it is not batched. Requires the `ADMIN` role.
@@ -543,11 +599,11 @@ type RootQuery {
   # role.
   me: User
 
-  # Users that the currently logged in user ignores
-  myIgnoredUsers: [User]
-
   # Users returned based on a query.
   users(query: UsersQuery): [User]
+
+  # a single User by id
+  user(id: ID!): User
 
   # Asset metrics related to user actions are saturated into the assets
   # returned. Parameters `from` and `to` are related to the action created_at field.
@@ -593,22 +649,25 @@ enum ACTION_ITEM_TYPE {
   USERS
 }
 
-input CreateLikeInput {
-
-  # The item's id for which we are to create a like.
-  item_id: ID!
-
-  # The type of the item for which we are to create the like.
-  item_type: ACTION_ITEM_TYPE!
+enum TAG_TYPE {
+  STAFF
 }
 
-type CreateLikeResponse implements Response {
+# CreateCommentInput is the input content used to create a new comment.
+input CreateCommentInput {
 
-  # The like that was created.
-  like: LikeAction
+  # The asset id
+  asset_id: ID!
 
-  # An array of errors relating to the mutation that occurred.
-  errors: [UserError]
+  # The id of the parent comment
+  parent_id: ID
+
+  # The body of the comment
+  body: String!
+
+  # Tags
+  tags: [TAG_TYPE]
+
 }
 
 input CreateFlagInput {
@@ -666,6 +725,29 @@ input CreateDontAgreeInput {
   message: String
 }
 
+# Input for suspendUser mutation.
+input SuspendUserInput {
+
+  # id of target user.
+  id: ID!
+
+  # message to be sent to the user.
+  message: String!
+
+  # target user will be suspended until this date.
+  until: Date!
+}
+
+# Input for rejectUsername mutation.
+input RejectUsernameInput {
+
+  # id of target user.
+  id: ID!
+
+  # message to be sent to the user.
+  message: String!
+}
+
 # DeleteActionResponse is the response returned with possibly some errors
 # relating to the delete action attempt.
 type DeleteActionResponse implements Response {
@@ -685,6 +767,14 @@ type SetUserStatusResponse implements Response {
 # SuspendUserResponse is the response returned with possibly some errors
 # relating to the suspend action attempt.
 type SuspendUserResponse implements Response {
+
+  # An array of errors relating to the mutation that occurred.
+  errors: [UserError]
+}
+
+# RejectUsernameResponse is the response returned with possibly some errors
+# relating to the reject username action attempt.
+type RejectUsernameResponse implements Response {
 
   # An array of errors relating to the mutation that occurred.
   errors: [UserError]
@@ -724,14 +814,28 @@ type StopIgnoringUserResponse implements Response {
   errors: [UserError]
 }
 
+# Input to editComment mutation.
+input EditCommentInput {
+
+  # Update body of the comment
+  body: String!
+}
+
+# EditCommentResponse contains the updated comment and any errors that occured.
+type EditCommentResponse implements Response {
+
+  # The edited comment.
+  comment: Comment
+
+  # An array of errors relating to the mutation that occured.
+  errors: [UserError]
+}
+
 # All mutations for the application are defined on this object.
 type RootMutation {
 
   # Creates a comment on the asset.
-  createComment(asset_id: ID!, parent_id: ID, body: String!): CreateCommentResponse
-
-  # Creates a like on an entity.
-  createLike(like: CreateLikeInput!): CreateLikeResponse
+  createComment(comment: CreateCommentInput!): CreateCommentResponse
 
   # Creates a flag on an entity.
   createFlag(flag: CreateFlagInput!): CreateFlagResponse
@@ -742,11 +846,17 @@ type RootMutation {
   # Delete an action based on the action id.
   deleteAction(id: ID!): DeleteActionResponse
 
+  # Edit a comment
+  editComment(id: ID!, asset_id: ID!, edit: EditCommentInput): EditCommentResponse
+
   # Sets User status. Requires the `ADMIN` role.
   setUserStatus(id: ID!, status: USER_STATUS!): SetUserStatusResponse
 
-  # Sets User status to BANNED and canEditName to true. It sends a message to the banned User. Requires the `ADMIN` role.
-  suspendUser(id: ID!, message: String): SuspendUserResponse
+  # Suspends a user. Requires the `ADMIN` role.
+  suspendUser(input: SuspendUserInput!): SuspendUserResponse
+
+  # Suspends a user. Requires the `ADMIN` role.
+  rejectUsername(input: RejectUsernameInput!): RejectUsernameResponse
 
   # Sets Comment status. Requires the `ADMIN` role.
   setCommentStatus(id: ID!, status: COMMENT_STATUS!): SetCommentStatusResponse
@@ -765,10 +875,19 @@ type RootMutation {
 }
 
 ################################################################################
+## Subscriptions
+################################################################################
+
+type Subscription {
+  commentAdded(asset_id: ID!): Comment
+}
+
+################################################################################
 ## Schema
 ################################################################################
 
 schema {
   query: RootQuery
   mutation: RootMutation
+  subscription: Subscription
 }

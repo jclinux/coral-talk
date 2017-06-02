@@ -11,7 +11,7 @@ describe('graph.mutations.addCommentTag', () => {
   let comment;
   beforeEach(async () => {
     await SettingsService.init();
-    comment = await CommentsService.publicCreate({body: `hello there! ${  String(Math.random()).slice(2)}`});
+    comment = await CommentsService.publicCreate({body: `hello there! ${String(Math.random()).slice(2)}`});
   });
 
   const query = `
@@ -44,6 +44,7 @@ describe('graph.mutations.addCommentTag', () => {
     Object.entries({
       'anonymous': undefined,
       'regular commenter': new UserModel({}),
+      'staff': new UserModel({roles: ['STAFF']}),
       'banned moderator': new UserModel({roles: ['MODERATOR'], status: 'BANNED'})
     }).forEach(([ userDescription, user ]) => {
       it(userDescription, async function () {

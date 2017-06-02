@@ -4,7 +4,9 @@ import styles from './Comment.css';
 import PubDate from '../coral-plugin-pubdate/PubDate';
 import Content from '../coral-plugin-commentcontent/CommentContent';
 
-const Comment = props => {
+import t from 'coral-framework/services/i18n';
+
+const Comment = (props) => {
   return (
     <div className={styles.myComment}>
       <div>
@@ -25,7 +27,7 @@ const Comment = props => {
         <ul>
           <li>
             <a onClick={props.link(`${props.asset.url}#${props.comment.id}`)}>
-              <Icon name="open_in_new" />View Conversation
+              <Icon name="open_in_new" />{t('view_conversation')}
             </a>
           </li>
           <li>

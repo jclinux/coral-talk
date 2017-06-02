@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const CompressionPlugin = require('compression-webpack-plugin');
 const autoprefixer = require('autoprefixer');
 const precss = require('precss');
 const Copy = require('copy-webpack-plugin');
@@ -36,7 +37,7 @@ const buildEmbeds = [
   'stream'
 ];
 
-module.exports = {
+const config = {
   devtool: 'cheap-module-source-map',
   entry: Object.assign({}, {
     'embed': [
@@ -88,8 +89,13 @@ module.exports = {
       },
       {
         loader: 'json-loader',
-        test: /\.json$/,
+        test: /\.(json|yml)$/,
         exclude: /node_modules/
+      },
+      {
+        loader: 'yaml-loader',
+        exclude: /node_modules/,
+        test: /\.yml$/,
       },
       {
         loaders: [
@@ -124,14 +130,10 @@ module.exports = {
       addUrl: true
     }),
     new Copy([
-      ...buildEmbeds.map(embed => ({
+      ...buildEmbeds.map((embed) => ({
         from: path.join(__dirname, 'client', `coral-embed-${embed}`, 'style'),
         to: path.join(__dirname, 'dist', 'embed', embed)
-      })),
-      {
-        from: path.join(__dirname, 'client', 'lib'),
-        to: path.join(__dirname, 'dist', 'embed', 'stream')
-      }
+      }))
     ]),
     autoprefixer,
     precss,
@@ -158,9 +160,21 @@ module.exports = {
     modules: [
       path.resolve(__dirname, 'plugins'),
       path.resolve(__dirname, 'client'),
-      ...buildTargets.map(target => path.join(__dirname, 'client', target, 'src')),
-      ...buildEmbeds.map(embed => path.join(__dirname, 'client', `coral-embed-${embed}`, 'src')),
+      ...buildTargets.map((target) => path.join(__dirname, 'client', target, 'src')),
+      ...buildEmbeds.map((embed) => path.join(__dirname, 'client', `coral-embed-${embed}`, 'src')),
       'node_modules'
     ]
   }
 };
+
+if (process.env.NODE_ENV === 'production') {
+  config.plugins.push(new CompressionPlugin({
+    asset: '[path].gz[query]',
+    algorithm: 'gzip',
+    test: /\.(js)$/,
+    threshold: 10240,
+    minRatio: 0.8
+  }));
+}
+
+module.exports = config;

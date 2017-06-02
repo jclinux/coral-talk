@@ -1,19 +1,22 @@
-import React, {Component} from 'react';
+import React from 'react';
+import cn from 'classnames';
+import styles from './Slot.css';
+import {connect} from 'react-redux';
 import {getSlotElements} from 'coral-framework/helpers/plugins';
 
-class Slot extends Component {
-  render() {
-    const {fill, ...rest} = this.props;
-    return (
-      <span>
-        {getSlotElements(fill, rest)}
-      </span>
-    );
-  }
+function Slot ({fill, inline = false, plugin_config: config, ...rest}) {
+  return (
+    <div className={cn({[styles.inline]: inline, [styles.debug]: config.debug})}>
+      {getSlotElements(fill, {...rest, config})}
+    </div>
+  );
 }
 
 Slot.propTypes = {
   fill: React.PropTypes.string
 };
 
-export default Slot;
+const mapStateToProps = ({config: {plugin_config = {}}}) => ({plugin_config});
+
+export default connect(mapStateToProps, null)(Slot);
+

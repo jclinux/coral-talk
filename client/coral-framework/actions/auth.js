@@ -1,40 +1,70 @@
-import {gql} from 'react-apollo';
-import client from 'coral-framework/services/client';
-import I18n from '../../coral-framework/modules/i18n/i18n';
-import translations from './../translations';
-const lang = new I18n(translations);
+import jwtDecode from 'jwt-decode';
+import bowser from 'bowser';
 import * as actions from '../constants/auth';
-import coralApi, {base} from '../helpers/response';
-import {pym} from 'coral-framework';
+import * as Storage from '../helpers/storage';
+import coralApi, {base} from '../helpers/request';
 
-const ME_QUERY = gql`
-  query Me {
-    me {
-      status
+import t from 'coral-framework/services/i18n';
+
+export const showSignInDialog = () => (dispatch, getState) => {
+  const signInPopUp = window.open(
+    '/embed/stream/login',
+    'Login',
+    'menubar=0,resizable=0,width=500,height=550,top=200,left=500'
+  );
+
+  // Workaround odd behavior in older WebKit versions, where
+  // onunload is called twice. (Encountered in IOS 8.3)
+  let loaded = false;
+  signInPopUp.onload = () => {
+    loaded = true;
+
+    // Fire some actions inside the popups reducer, to initialize required state.
+    const required = getState().asset.toJS().settings.requireEmailConfirmation;
+    const redirectUri = getState().auth.toJS().redirectUri;
+    signInPopUp.coralStore.dispatch(setRequireEmailVerification(required));
+    signInPopUp.coralStore.dispatch(setRedirectUri(redirectUri));
+  };
+
+  // Use `onunload` instead of `onbeforeunload` which is not supported in IOS Safari.
+  signInPopUp.onunload = () => {
+    if (loaded) {
+      dispatch(checkLogin());
     }
-  }
-`;
+  };
 
-function fetchMe() {
-  return client.query({
-    fetchPolicy: 'network-only',
-    query: ME_QUERY});
-}
+  dispatch({type: actions.SHOW_SIGNIN_DIALOG});
+};
+export const hideSignInDialog = () => (dispatch) => {
+  dispatch({type: actions.HIDE_SIGNIN_DIALOG});
+  window.close();
+};
 
-// Dialog Actions
-export const showSignInDialog = (offset = 0) => ({type: actions.SHOW_SIGNIN_DIALOG, offset});
-export const hideSignInDialog = () => ({type: actions.HIDE_SIGNIN_DIALOG});
+export const createUsernameRequest = () => ({
+  type: actions.CREATE_USERNAME_REQUEST
+});
+export const showCreateUsernameDialog = () => ({
+  type: actions.SHOW_CREATEUSERNAME_DIALOG
+});
+export const hideCreateUsernameDialog = () => ({
+  type: actions.HIDE_CREATEUSERNAME_DIALOG
+});
 
-export const createUsernameRequest = () => ({type: actions.CREATE_USERNAME_REQUEST});
-export const showCreateUsernameDialog = () => ({type: actions.SHOW_CREATEUSERNAME_DIALOG});
-export const hideCreateUsernameDialog = () => ({type: actions.HIDE_CREATEUSERNAME_DIALOG});
+const createUsernameSuccess = () => ({
+  type: actions.CREATE_USERNAME_SUCCESS
+});
 
-const createUsernameSuccess = () => ({type: actions.CREATE_USERNAME_SUCCESS});
-const createUsernameFailure = error => ({type: actions.CREATE_USERNAME_FAILURE, error});
+const createUsernameFailure = (error) => ({
+  type: actions.CREATE_USERNAME_FAILURE,
+  error
+});
 
-export const updateUsername = ({username}) => ({type: actions.UPDATE_USERNAME, username});
+export const updateUsername = ({username}) => ({
+  type: actions.UPDATE_USERNAME,
+  username
+});
 
-export const createUsername = (userId, formData) => dispatch => {
+export const createUsername = (userId, formData) => (dispatch) => {
   dispatch(createUsernameRequest());
   coralApi('/account/username', {method: 'PUT', body: formData})
     .then(() => {
@@ -42,54 +72,104 @@ export const createUsername = (userId, formData) => dispatch => {
       dispatch(hideCreateUsernameDialog());
       dispatch(updateUsername(formData));
     })
-    .catch(error => {
-      dispatch(createUsernameFailure(lang.t(`error.${error.translation_key}`)));
+    .catch((error) => {
+      dispatch(createUsernameFailure(t(`error.${error.translation_key}`)));
     });
 };
 
-export const changeView = view => dispatch =>
+export const changeView = (view) => (dispatch) => {
   dispatch({
     type: actions.CHANGE_VIEW,
     view
   });
 
-export const cleanState = () => ({type: actions.CLEAN_STATE});
+  switch (view) {
+  case 'SIGNUP':
+    window.resizeTo(500, 800);
+    break;
+  case 'FORGOT':
+    window.resizeTo(500, 400);
+    break;
+  default:
+    window.resizeTo(500, 550);
+  }
+};
+
+export const cleanState = () => ({
+  type: actions.CLEAN_STATE
+});
 
 // Sign In Actions
 
-const signInRequest = () => ({type: actions.FETCH_SIGNIN_REQUEST});
-const signInSuccess = (user, isAdmin) => ({type: actions.FETCH_SIGNIN_SUCCESS, user, isAdmin});
-const signInFailure = error => ({type: actions.FETCH_SIGNIN_FAILURE, error});
+const signInRequest = () => ({
+  type: actions.FETCH_SIGNIN_REQUEST
+});
 
-export const fetchSignIn = (formData) => (dispatch) => {
-  dispatch(signInRequest());
-  return coralApi('/auth/local', {method: 'POST', body: formData})
-    .then(({user}) => {
-      const isAdmin = !!user && !!user.roles.filter(i => i === 'ADMIN').length;
-      dispatch(signInSuccess(user, isAdmin));
-      dispatch(hideSignInDialog());
-      fetchMe();
-    })
-    .catch(error => {
-      if (error.metadata) {
+const signInFailure = (error) => ({
+  type: actions.FETCH_SIGNIN_FAILURE,
+  error
+});
 
-        // the user might not have a valid email. prompt the user user re-request the confirmation email
-        dispatch(signInFailure(lang.t('error.emailNotVerified', error.metadata)));
-      } else {
+//==============================================================================
+// AUTH TOKEN
+//==============================================================================
 
-        // invalid credentials
-        dispatch(signInFailure(lang.t('error.emailPasswordError')));
-      }
-    });
+export const handleAuthToken = (token) => (dispatch) => {
+  Storage.setItem('exp', jwtDecode(token).exp);
+  Storage.setItem('token', token);
+  dispatch({type: 'HANDLE_AUTH_TOKEN'});
 };
 
-// Sign In - Facebook
+//==============================================================================
+// SIGN IN
+//==============================================================================
 
-const signInFacebookRequest = () => ({type: actions.FETCH_SIGNIN_FACEBOOK_REQUEST});
-const signInFacebookSuccess = user => ({type: actions.FETCH_SIGNIN_FACEBOOK_SUCCESS, user});
-const signInFacebookFailure = error => ({type: actions.FETCH_SIGNIN_FACEBOOK_FAILURE, error});
+export const fetchSignIn = (formData) => {
+  return (dispatch) => {
+    dispatch(signInRequest());
 
-export const fetchSignInFacebook = () => dispatch => {
+    return coralApi('/auth/local', {method: 'POST', body: formData})
+      .then(({token}) => {
+        if (!bowser.safari && !bowser.ios) {
+          dispatch(handleAuthToken(token));
+        }
+        dispatch(hideSignInDialog());
+      })
+      .catch((error) => {
+        if (error.metadata) {
+
+          // the user might not have a valid email. prompt the user user re-request the confirmation email
+          dispatch(
+            signInFailure(t('error.email_not_verified', error.metadata))
+          );
+        } else {
+
+          // invalid credentials
+          dispatch(signInFailure(t('error.email_password')));
+        }
+      });
+  };
+};
+
+//==============================================================================
+// SIGN IN - FACEBOOK
+//==============================================================================
+
+const signInFacebookRequest = () => ({
+  type: actions.FETCH_SIGNIN_FACEBOOK_REQUEST
+});
+
+const signInFacebookSuccess = (user) => ({
+  type: actions.FETCH_SIGNIN_FACEBOOK_SUCCESS,
+  user
+});
+
+const signInFacebookFailure = (error) => ({
+  type: actions.FETCH_SIGNIN_FACEBOOK_FAILURE,
+  error
+});
+
+export const fetchSignInFacebook = () => (dispatch) => {
   dispatch(signInFacebookRequest());
   window.open(
     `${base}/auth/facebook`,
@@ -98,11 +178,15 @@ export const fetchSignInFacebook = () => dispatch => {
   );
 };
 
-// Sign Up Facebook
+//==============================================================================
+// SIGN UP - FACEBOOK
+//==============================================================================
 
-const signUpFacebookRequest = () => ({type: actions.FETCH_SIGNUP_FACEBOOK_REQUEST});
+const signUpFacebookRequest = () => ({
+  type: actions.FETCH_SIGNUP_FACEBOOK_REQUEST
+});
 
-export const fetchSignUpFacebook = () => dispatch => {
+export const fetchSignUpFacebook = () => (dispatch) => {
   dispatch(signUpFacebookRequest());
   window.open(
     `${base}/auth/facebook`,
@@ -111,112 +195,174 @@ export const fetchSignUpFacebook = () => dispatch => {
   );
 };
 
-export const facebookCallback = (err, data) => dispatch => {
+export const facebookCallback = (err, data) => (dispatch) => {
   if (err) {
     dispatch(signInFacebookFailure(err));
     return;
   }
   try {
-    const user = JSON.parse(data);
-    dispatch(signInFacebookSuccess(user));
+    dispatch(handleAuthToken(data.token));
+    dispatch(signInFacebookSuccess(data.user));
     dispatch(hideSignInDialog());
-    dispatch(showCreateUsernameDialog());
-    fetchMe();
   } catch (err) {
     dispatch(signInFacebookFailure(err));
     return;
   }
 };
 
-// Sign Up Actions
+//==============================================================================
+// SIGN UP
+//==============================================================================
 
 const signUpRequest = () => ({type: actions.FETCH_SIGNUP_REQUEST});
-const signUpSuccess = user => ({type: actions.FETCH_SIGNUP_SUCCESS, user});
-const signUpFailure = error => ({type: actions.FETCH_SIGNUP_FAILURE, error});
+const signUpSuccess = (user) => ({type: actions.FETCH_SIGNUP_SUCCESS, user});
+const signUpFailure = (error) => ({type: actions.FETCH_SIGNUP_FAILURE, error});
 
-export const fetchSignUp = (formData, redirectUri) => (dispatch) => {
+export const fetchSignUp = (formData) => (dispatch, getState) => {
+  const redirectUri = getState().auth.toJS().redirectUri;
   dispatch(signUpRequest());
 
-  coralApi('/users', {method: 'POST', body: formData, headers: {'X-Pym-Url': redirectUri}})
+  coralApi('/users', {
+    method: 'POST',
+    body: formData,
+    headers: {'X-Pym-Url': redirectUri}
+  })
     .then(({user}) => {
       dispatch(signUpSuccess(user));
     })
-    .catch(error => {
-      dispatch(signUpFailure(lang.t(`error.${error.message}`)));
+    .catch((error) => {
+      let errorMessage = t(`error.${error.message}`);
+
+      // if there is no translation defined, just show the error string
+      if (errorMessage === `error.${error.message}`) {
+        errorMessage = error.message;
+      }
+      dispatch(signUpFailure(errorMessage));
     });
 };
 
-// Forgot Password Actions
+//==============================================================================
+// FORGOT PASSWORD
+//==============================================================================
 
-const forgotPassowordRequest = () => ({type: actions.FETCH_FORGOT_PASSWORD_REQUEST});
-const forgotPassowordSuccess = () => ({type: actions.FETCH_FORGOT_PASSWORD_SUCCESS});
-const forgotPassowordFailure = () => ({type: actions.FETCH_FORGOT_PASSWORD_FAILURE});
+const forgotPasswordRequest = () => ({
+  type: actions.FETCH_FORGOT_PASSWORD_REQUEST
+});
 
-export const fetchForgotPassword = email => (dispatch) => {
-  dispatch(forgotPassowordRequest(email));
-  const redirectUri = pym.parentUrl || location.href;
-  coralApi('/account/password/reset', {method: 'POST', body: {email, loc: redirectUri}})
-    .then(() => dispatch(forgotPassowordSuccess()))
-    .catch(error => dispatch(forgotPassowordFailure(error)));
+const forgotPasswordSuccess = () => ({
+  type: actions.FETCH_FORGOT_PASSWORD_SUCCESS
+});
+
+const forgotPasswordFailure = () => ({
+  type: actions.FETCH_FORGOT_PASSWORD_FAILURE
+});
+
+export const fetchForgotPassword = (email) => (dispatch, getState) => {
+  dispatch(forgotPasswordRequest(email));
+  const redirectUri = getState().auth.toJS().redirectUri;
+  coralApi('/account/password/reset', {
+    method: 'POST',
+    body: {email, loc: redirectUri}
+  })
+    .then(() => dispatch(forgotPasswordSuccess()))
+    .catch((error) => dispatch(forgotPasswordFailure(error)));
 };
 
-// LogOut Actions
+//==============================================================================
+// LOGOUT
+//==============================================================================
 
-const logOutRequest = () => ({type: actions.LOGOUT_REQUEST});
-const logOutSuccess = () => ({type: actions.LOGOUT_SUCCESS});
-const logOutFailure = () => ({type: actions.LOGOUT_FAILURE});
-
-export const logout = () => dispatch => {
-  dispatch(logOutRequest());
-  return coralApi('/auth', {method: 'DELETE'})
-    .then(() => {
-      dispatch(logOutSuccess());
-      fetchMe();
-    })
-    .catch(error => dispatch(logOutFailure(error)));
+export const logout = () => (dispatch) => {
+  return coralApi('/auth', {method: 'DELETE'}).then(() => {
+    if (!bowser.safari && !bowser.ios) {
+      Storage.removeItem('token');
+    }
+    dispatch({type: actions.LOGOUT});
+  });
 };
 
-// LogOut Actions
-
-export const validForm = () => ({type: actions.VALID_FORM});
-export const invalidForm = error => ({type: actions.INVALID_FORM, error});
-
-// Check Login
+//==============================================================================
+// CHECK LOGIN
+//==============================================================================
 
 const checkLoginRequest = () => ({type: actions.CHECK_LOGIN_REQUEST});
-const checkLoginSuccess = (user, isAdmin) => ({type: actions.CHECK_LOGIN_SUCCESS, user, isAdmin});
-const checkLoginFailure = error => ({type: actions.CHECK_LOGIN_FAILURE, error});
+const checkLoginFailure = (error) => ({type: actions.CHECK_LOGIN_FAILURE, error});
 
-export const checkLogin = () => dispatch => {
+const checkLoginSuccess = (user, isAdmin) => ({
+  type: actions.CHECK_LOGIN_SUCCESS,
+  user,
+  isAdmin
+});
+
+export const checkLogin = () => (dispatch) => {
   dispatch(checkLoginRequest());
   coralApi('/auth')
     .then((result) => {
       if (!result.user) {
+        if (!bowser.safari && !bowser.ios) {
+          Storage.removeItem('token');
+        }
         throw new Error('Not logged in');
       }
 
-      const isAdmin = !!result.user.roles.filter(i => i === 'ADMIN').length;
-      dispatch(checkLoginSuccess(result.user, isAdmin));
+      dispatch(checkLoginSuccess(result.user));
+
+      // Display create username dialog if necessary.
+      if (result.user.canEditName && result.user.status !== 'BANNED') {
+        dispatch(showCreateUsernameDialog());
+      }
     })
-    .catch(error => {
+    .catch((error) => {
       console.error(error);
       dispatch(checkLoginFailure(`${error.translation_key}`));
     });
 };
 
-const verifyEmailRequest = () => ({type: actions.VERIFY_EMAIL_REQUEST});
-const verifyEmailSuccess = () => ({type: actions.VERIFY_EMAIL_SUCCESS});
-const verifyEmailFailure = () => ({type: actions.VERIFY_EMAIL_FAILURE});
+export const validForm = () => ({type: actions.VALID_FORM});
+export const invalidForm = (error) => ({type: actions.INVALID_FORM, error});
 
-export const requestConfirmEmail = (email, redirectUri) => dispatch => {
+//==============================================================================
+// VERIFY EMAIL
+//==============================================================================
+
+const verifyEmailRequest = () => ({
+  type: actions.VERIFY_EMAIL_REQUEST
+});
+
+const verifyEmailSuccess = () => ({
+  type: actions.VERIFY_EMAIL_SUCCESS
+});
+
+const verifyEmailFailure = () => ({
+  type: actions.VERIFY_EMAIL_FAILURE
+});
+
+export const requestConfirmEmail = (email) => (dispatch, getState) => {
+  const redirectUri = getState().auth.toJS().redirectUri;
   dispatch(verifyEmailRequest());
-  return coralApi('/users/resend-verify', {method: 'POST', body: {email}, headers: {'X-Pym-Url': redirectUri}})
+  return coralApi('/users/resend-verify', {
+    method: 'POST',
+    body: {email},
+    headers: {'X-Pym-Url': redirectUri}
+  })
     .then(() => {
       dispatch(verifyEmailSuccess());
     })
-    .catch(err => {
+    .catch((err) => {
 
       // email might have already been verifyed
       dispatch(verifyEmailFailure(err));
+      throw err;
     });
 };
+
+// Login Popup actions.
+export const setRequireEmailVerification = (required) => ({
+  type: actions.SET_REQUIRE_EMAIL_VERIFICATION,
+  required,
+});
+
+export const setRedirectUri = (uri) => ({
+  type: actions.SET_REDIRECT_URI,
+  uri,
+});

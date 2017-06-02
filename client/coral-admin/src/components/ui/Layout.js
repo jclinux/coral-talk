@@ -4,9 +4,17 @@ import Header from './Header';
 import Drawer from './Drawer';
 import styles from './Layout.css';
 
-const Layout = ({children, handleLogout = () => {}, restricted = false, ...props}) => (
+const Layout = ({
+  children,
+  handleLogout = () => {},
+  toggleShortcutModal,
+  restricted = false,
+  ...props}) => (
   <LayoutMDL fixedDrawer>
-    <Header handleLogout={handleLogout} restricted={restricted} {...props} />
+    <Header
+      handleLogout={handleLogout}
+      showShortcuts={toggleShortcutModal}
+      {...props} />
     <Drawer handleLogout={handleLogout} restricted={restricted} {...props} />
     <div className={styles.layout}>
       {children}
@@ -16,6 +24,7 @@ const Layout = ({children, handleLogout = () => {}, restricted = false, ...props
 
 Layout.propTypes = {
   handleLogout: PropTypes.func,
+  toggleShortcutModal: PropTypes.func,
   restricted: PropTypes.bool // hide elements from a user that's logged out
 };
 

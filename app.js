@@ -3,16 +3,16 @@ const bodyParser = require('body-parser');
 const morgan = require('morgan');
 const path = require('path');
 const helmet = require('helmet');
+const authentication = require('./middleware/authentication');
 const {passport} = require('./services/passport');
 const plugins = require('./services/plugins');
-const session = require('express-session');
 const enabled = require('debug').enabled;
-const RedisStore = require('connect-redis')(session);
-const redis = require('./services/redis');
-const csrf = require('csurf');
 const errors = require('./errors');
-const graph = require('./graph');
+const {createGraphOptions} = require('./graph');
 const apollo = require('graphql-server-express');
+const accepts = require('accepts');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 
@@ -33,44 +33,44 @@ app.set('trust proxy', 1);
 app.use(helmet({
   frameguard: false
 }));
+app.use(compression());
+app.use(cookieParser());
 app.use(bodyParser.json());
-app.use('/client', express.static(path.join(__dirname, 'dist')));
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
 
 //==============================================================================
-// SESSION MIDDLEWARE
+// STATIC FILES
 //==============================================================================
 
-const session_opts = {
-  secret: process.env.TALK_SESSION_SECRET,
-  httpOnly: true,
-  rolling: true,
-  saveUninitialized: true,
-  resave: true,
-  unset: 'destroy',
-  name: 'talk.sid',
-  cookie: {
-    secure: false,
-    maxAge: 8.64e+7, // 24 hours for session token expiry
-  },
-  store: new RedisStore({
-    client: redis.createClient(),
-  })
-};
+// If the application is in production mode, then add gzip rewriting for the
+// content.
+if (process.env.NODE_ENV === 'production') {
+  app.get('*.js', (req, res, next) => {
+    const accept = accepts(req);
+    if (accept.encoding(['gzip']) === 'gzip') {
 
-if (app.get('env') === 'production') {
+      // Adjsut the headers on the request by adding a content type header
+      // because express won't be able to detect the mime-type with the .gz
+      // extension and we need to decalre support for the gzip encoding.
+      res.set('Content-Type', 'application/javascript');
+      res.set('Content-Encoding', 'gzip');
 
-  // Enable the secure cookie when we are in production mode.
-  session_opts.cookie.secure = true;
-} else if (app.get('env') === 'test') {
+      // Rewrite the url so that the gzip version will be served instead.
+      req.url = `${req.url}.gz`;
+    }
 
-  // Add in the secret during tests.
-  session_opts.secret = 'keyboard cat';
+    next();
+  });
 }
 
-app.use(session(session_opts));
+app.use('/client', express.static(path.join(__dirname, 'dist')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+//==============================================================================
+// VIEW CONFIGURATION
+//==============================================================================
+
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
 
 //==============================================================================
 // PASSPORT MIDDLEWARE
@@ -89,49 +89,31 @@ plugins.get('server', 'passport').forEach((plugin) => {
 
 // Setup the PassportJS Middleware.
 app.use(passport.initialize());
-app.use(passport.session());
+
+// Attach the authentication middleware, this will be responsible for decoding
+// (if present) the JWT on the request.
+app.use('/api', authentication);
 
 //==============================================================================
 // GraphQL Router
 //==============================================================================
 
 // GraphQL endpoint.
-app.use('/api/v1/graph/ql', apollo.graphqlExpress(graph.createGraphOptions));
+app.use('/api/v1/graph/ql', apollo.graphqlExpress(createGraphOptions));
 
 // Only include the graphiql tool if we aren't in production mode.
 if (app.get('env') !== 'production') {
 
   // Interactive graphiql interface.
-  app.use('/api/v1/graph/iql', apollo.graphiqlExpress({
-    endpointURL: '/api/v1/graph/ql'
-  }));
+  app.use('/api/v1/graph/iql', (req, res) => {
+    res.render('graphiql', {
+      endpointURL: '/api/v1/graph/ql'
+    });
+  });
 
   // GraphQL documention.
   app.get('/admin/docs', (req, res) => {
     res.render('admin/docs');
-  });
-
-}
-
-//==============================================================================
-// CSRF MIDDLEWARE
-//==============================================================================
-
-if (process.env.TEST_MODE === 'unit') {
-
-  // Add this fake test token in the event we are in unit test mode, and don't
-  // include the CSRF protection.
-  app.locals.csrfToken = 'UNIT_TESTS';
-
-} else {
-
-  // Setup route middlewares for CSRF protection.
-  // Default ignore methods are GET, HEAD, OPTIONS
-  app.use(csrf({}));
-  app.use((req, res, next) => {
-    res.locals.csrfToken = req.csrfToken();
-
-    next();
   });
 
 }

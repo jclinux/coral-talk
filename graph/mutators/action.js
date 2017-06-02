@@ -2,6 +2,7 @@ const ActionModel = require('../../models/action');
 const ActionsService = require('../../services/actions');
 const UsersService = require('../../services/users');
 const errors = require('../../errors');
+const {CREATE_ACTION, DELETE_ACTION} = require('../../perms/constants');
 
 /**
  * Creates an action on a item. If the item is a user flag, sets the user's status to
@@ -12,23 +13,23 @@ const errors = require('../../errors');
  * @param  {String} action_type type of the action
  * @return {Promise}            resolves to the action created
  */
-const createAction = ({user = {}}, {item_id, item_type, action_type, group_id, metadata = {}}) => {
-  return ActionsService.insertUserAction({
+const createAction = async ({user = {}}, {item_id, item_type, action_type, group_id, metadata = {}}) => {
+  let action = await ActionsService.insertUserAction({
     item_id,
     item_type,
     user_id: user.id,
     group_id,
     action_type,
     metadata
-  }).then((action) => {
-    if (item_type === 'USERS' && action_type === 'FLAG') {
-      return UsersService
-        .setStatus(item_id, 'PENDING')
-        .then(() => action);
-    }
-
-    return action;
   });
+
+  if (item_type === 'USERS' && action_type === 'FLAG') {
+
+    // Set the user as pending if it was a user flag.
+    await UsersService.setStatus(item_id, 'PENDING');
+  }
+
+  return action;
 };
 
 /**
@@ -45,7 +46,7 @@ const deleteAction = ({user}, {id}) => {
 };
 
 module.exports = (context) => {
-  if (context.user && context.user.can('mutation:createAction', 'mutation:deleteAction')) {
+  if (context.user && context.user.can(CREATE_ACTION, DELETE_ACTION)) {
     return {
       Action: {
         create: (action) => createAction(context, action),

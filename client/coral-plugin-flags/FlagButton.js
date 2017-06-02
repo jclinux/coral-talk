@@ -1,6 +1,7 @@
 import React, {Component} from 'react';
-import {I18n} from '../coral-framework';
-import translations from './translations.json';
+
+import t from 'coral-framework/services/i18n';
+
 import {PopupMenu, Button} from 'coral-ui';
 import onClickOutside from 'react-onclickoutside';
 
@@ -15,24 +16,23 @@ class FlagButton extends Component {
     message: '',
     step: 0,
     posted: false,
-    localPost: null,
-    localDelete: false
+    localPost: null
+  }
+
+  componentDidUpdate () {
+    if (this.popup) { // this will be defined when the reporting popup is opened
+      this.popup.firstChild.style.top = `${this.flagButton.offsetTop - this.popup.firstChild.clientHeight - 15}px`;
+    }
   }
 
   // When the "report" button is clicked expand the menu
   onReportClick = () => {
-    const {currentUser, flag, deleteAction} = this.props;
-    const {localPost, localDelete} = this.state;
-    const flagged = (flag && flag.current_user && !localDelete) || localPost;
+    const {currentUser} = this.props;
     if (!currentUser) {
-      const offset = document.getElementById(`c_${this.props.id}`).getBoundingClientRect().top - 75;
-      this.props.showSignInDialog(offset);
+      this.props.showSignInDialog();
       return;
     }
-    if (flagged) {
-      this.setState((prev) => prev.localPost ? {...prev, localPost: null, step: 0} : {...prev, localDelete: true});
-      deleteAction(localPost || flag.current_user.id);
-    } else if (this.state.showMenu){
+    if (this.state.showMenu) {
       this.closeMenu();
     } else {
       this.setState({showMenu: true});
@@ -130,17 +130,20 @@ class FlagButton extends Component {
   }
 
   render () {
-    const {flag, getPopupMenu} = this.props;
-    const {localPost, localDelete} = this.state;
-    const flagged = (flag && flag.current_user && !localDelete) || localPost;
+    const {getPopupMenu, flaggedByCurrentUser} = this.props;
+    const {localPost} = this.state;
+    const flagged = flaggedByCurrentUser || localPost;
     const popupMenu = getPopupMenu[this.state.step](this.state.itemType);
 
     return <div className={`${name}-container`}>
-      <button onClick={!this.props.banned ? this.onReportClick : null} className={`${name}-button`}>
+      <button
+        ref={(ref) => this.flagButton = ref}
+        onClick={!this.props.banned && !flaggedByCurrentUser && !localPost ? this.onReportClick : null}
+        className={`${name}-button`}>
         {
           flagged
-          ? <span className={`${name}-button-text`}>{lang.t('reported')}</span>
-          : <span className={`${name}-button-text`}>{lang.t('report')}</span>
+          ? <span className={`${name}-button-text`}>{t('reported')}</span>
+          : <span className={`${name}-button-text`}>{t('report')}</span>
         }
         <i className={`${name}-icon material-icons ${flagged && 'flaggedIcon'}`}
           style={flagged ? styles.flaggedIcon : {}}
@@ -148,7 +151,7 @@ class FlagButton extends Component {
       </button>
       {
         this.state.showMenu &&
-        <div className={`${name}-popup`}>
+        <div className={`${name}-popup`} ref={(ref) => this.popup = ref}>
           <PopupMenu>
             <div className={`${name}-popup-header`}>{popupMenu.header}</div>
             {
@@ -174,7 +177,7 @@ class FlagButton extends Component {
                 {
                   this.state.reason && <div>
                   <label htmlFor={'message'} className={`${name}-popup-radio-label`}>
-                    {lang.t('flag-reason')}
+                    {t('flag_reason')}
                   </label><br/>
                   <textarea
                       className={`${name}-reason-text`}
@@ -213,5 +216,3 @@ const styles = {
     color: 'inherit'
   }
 };
-
-const lang = new I18n(translations);

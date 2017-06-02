@@ -1,21 +1,19 @@
 import {addNotification} from '../actions/notification';
-import coralApi from '../helpers/response';
+import coralApi from '../helpers/request';
 import * as actions from '../constants/auth';
 
-import I18n from 'coral-framework/modules/i18n/i18n';
-import translations from './../translations';
-const lang = new I18n(translations);
+import t from 'coral-framework/services/i18n';
 
-const editUsernameFailure = error => ({type: actions.EDIT_USERNAME_FAILURE, error});
+const editUsernameFailure = (error) => ({type: actions.EDIT_USERNAME_FAILURE, error});
 const editUsernameSuccess = () => ({type: actions.EDIT_USERNAME_SUCCESS});
 
 export const editName = (username) => (dispatch) => {
   return coralApi('/account/username', {method: 'PUT', body: {username}})
     .then(() => {
       dispatch(editUsernameSuccess());
-      dispatch(addNotification('success', lang.t('successNameUpdate')));
+      dispatch(addNotification('success', t('framework.success_name_update')));
     })
-    .catch(error => {
-      dispatch(editUsernameFailure(lang.t(`error.${error.translation_key}`)));
+    .catch((error) => {
+      dispatch(editUsernameFailure(t(`error.${error.translation_key}`)));
     });
 };

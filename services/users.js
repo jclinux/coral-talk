@@ -1,12 +1,14 @@
 const assert = require('assert');
+const uuid = require('uuid');
 const bcrypt = require('bcrypt');
 const url = require('url');
 const jwt = require('jsonwebtoken');
 const Wordlist = require('./wordlist');
-
 const errors = require('../errors');
-
-const uuid = require('uuid');
+const {
+  JWT_SECRET,
+  ROOT_URL
+} = require('../config');
 
 const redis = require('./redis');
 const redisClient = redis.createClient();
@@ -21,14 +23,6 @@ const RECAPTCHA_INCORRECT_TRIGGER = 5; // after 3 incorrect attempts, recaptcha 
 const SettingsService = require('./settings');
 const ActionsService = require('./actions');
 const MailerService = require('./mailer');
-
-// In the event that the TALK_SESSION_SECRET is missing but we are testing, then
-// set the process.env.TALK_SESSION_SECRET.
-if (process.env.NODE_ENV === 'test' && !process.env.TALK_SESSION_SECRET) {
-  process.env.TALK_SESSION_SECRET = 'keyboard cat';
-} else if (!process.env.TALK_SESSION_SECRET) {
-  throw new Error('TALK_SESSION_SECRET must be defined to encode JSON Web Tokens and other auth functionality');
-}
 
 const EMAIL_CONFIRM_JWT_SUBJECT = 'email_confirm';
 const PASSWORD_RESET_JWT_SUBJECT = 'password_reset';
@@ -254,26 +248,28 @@ module.exports = class UsersService {
    * @param  {Boolean}  checkAgainstWordlist  enables cheching against the wordlist
    * @return {Promise}
    */
-  static isValidUsername(username, checkAgainstWordlist = true) {
+  static async isValidUsername(username, checkAgainstWordlist = true) {
     const onlyLettersNumbersUnderscore = /^[A-Za-z0-9_]+$/;
 
     if (!username) {
-      return Promise.reject(errors.ErrMissingUsername);
+      throw errors.ErrMissingUsername;
     }
 
     if (!onlyLettersNumbersUnderscore.test(username)) {
-
-      return Promise.reject(errors.ErrSpecialChars);
+      throw errors.ErrSpecialChars;
     }
 
     if (checkAgainstWordlist) {
 
       // check for profanity
-      console.log('Username profanity check disabled: ', Wordlist.usernameCheck(username));
+      let err = await Wordlist.usernameCheck(username);
+      if (err) {
+        throw err;
+      }
     }
 
     // No errors found!
-    return Promise.resolve(username);
+    return username;
   }
 
   /**
@@ -385,21 +381,18 @@ module.exports = class UsersService {
    * @param  {Function} done callback after the operation is complete
    */
   static addRoleToUser(id, role) {
+    const roles = [];
 
     // Check to see if the user role is in the allowable set of roles.
-    if (USER_ROLES.indexOf(role) === -1) {
+    if (role && USER_ROLES.indexOf(role) === -1) {
 
       // User role is not supported! Error out here.
       return Promise.reject(new Error(`role ${role} is not supported`));
+    } else if(role) {
+      roles.push(role);
     }
 
-    return UserModel.update({
-      id: id
-    }, {
-      $addToSet: {
-        roles: role
-      }
-    });
+    return UserModel.update({id}, {$set: {roles}});
   }
 
   /**
@@ -454,28 +447,64 @@ module.exports = class UsersService {
   }
 
   /**
-   * Suspend a user. It changes the status to BANNED and canEditName to True.
-   * @param  {String}   id   id of a user
-   * @param  {Function} done callback after the operation is complete
+   * Suspend a user until specified time.
+   * @param  {String}   id                  id of a user
+   * @param  {String}   message             message to be send to the user
+   * @param  {Date}     until               date until the suspension is valid.
    */
-  static suspendUser(id, message) {
+  static suspendUser(id, message, until) {
+    return UserModel.findOneAndUpdate(
+      {id}, {
+        $set: {
+          suspension: {
+            until,
+          },
+        }
+      })
+      .then((user) => {
+        if (message) {
+          let localProfile = user.profiles.find((profile) => profile.provider === 'local');
+          if (localProfile) {
+            const options =
+              {
+                template: 'suspension',              // needed to know which template to render!
+                locals: {                            // specifies the template locals.
+                  body: message
+                },
+                subject: 'Your account has been suspended',
+                to: localProfile.id  // This only works if the user has registered via e-mail.
+                                     // We may want a standard way to access a user's e-mail address in the future
+              };
+
+            return MailerService.sendSimple(options);
+          }
+        }
+      });
+  }
+
+  /**
+   * Reject username. It changes the status to BANNED and canEditName to True.
+   * @param  {String}   id                  id of a user
+   * @param  {String}   message             message to be send to the user
+   * @param  {Date}     until               date until the suspension is valid.
+   */
+  static rejectUsername(id, message) {
     return UserModel.findOneAndUpdate({
       id
     }, {
       $set: {
         status: 'BANNED',
-        canEditName: true
+        canEditName: true,
       }
     })
     .then((user) => {
       if (message) {
         let localProfile = user.profiles.find((profile) => profile.provider === 'local');
-
         if (localProfile) {
           const options =
             {
               template: 'suspension',              // needed to know which template to render!
-              locals: {                                  // specifies the template locals.
+              locals: {                            // specifies the template locals.
                 body: message
               },
               subject: 'Email Suspension',
@@ -484,8 +513,6 @@ module.exports = class UsersService {
             };
 
           return MailerService.sendSimple(options);
-        } else {
-          return Promise.reject(errors.ErrMissingEmail);
         }
       }
     });
@@ -542,10 +569,13 @@ module.exports = class UsersService {
           // endpoint.
           return;
         }
-
         let redirectDomain;
         try {
-          redirectDomain = url.parse(loc).hostname;
+          const {hostname, port} = url.parse(loc);
+          redirectDomain = hostname;
+          if (port) {
+            redirectDomain += `:${port}`;
+          }
         } catch (e) {
           return Promise.reject('redirect location is invalid');
         }
@@ -562,7 +592,7 @@ module.exports = class UsersService {
           version: user.__v
         };
 
-        return jwt.sign(payload, process.env.TALK_SESSION_SECRET, {
+        return jwt.sign(payload, JWT_SECRET, {
           algorithm: 'HS256',
           expiresIn: '1d',
           subject: PASSWORD_RESET_JWT_SUBJECT
@@ -581,7 +611,7 @@ module.exports = class UsersService {
       // Set the allowed algorithms.
       options.algorithms = ['HS256'];
 
-      jwt.verify(token, process.env.TALK_SESSION_SECRET, options, (err, decoded) => {
+      jwt.verify(token, JWT_SECRET, options, (err, decoded) => {
         if (err) {
           return reject(err);
         }
@@ -695,7 +725,7 @@ module.exports = class UsersService {
    * @param  {String} email The email that we are needing to get confirmed.
    * @return {Promise}
    */
-  static createEmailConfirmToken(userID = null, email, referer = process.env.TALK_ROOT_URL) {
+  static createEmailConfirmToken(userID = null, email, referer = ROOT_URL) {
     if (!email || typeof email !== 'string') {
       return Promise.reject('email is required when creating a JWT for resetting passord');
     }
@@ -738,7 +768,7 @@ module.exports = class UsersService {
         email,
         referer,
         userID: user.id
-      }, process.env.TALK_SESSION_SECRET, tokenOptions);
+      }, JWT_SECRET, tokenOptions);
     });
   }
 
@@ -817,7 +847,7 @@ module.exports = class UsersService {
         username: username,
         lowercaseUsername: username.toLowerCase(),
         canEditName: false,
-        status: 'PENDING'
+        status: 'PENDING',
       }
     })
     .then((result) => {
@@ -843,7 +873,7 @@ module.exports = class UsersService {
    */
   static ignoreUsers(userId, usersToIgnore) {
     assert(Array.isArray(usersToIgnore), 'usersToIgnore is an array');
-    assert(usersToIgnore.every(u => typeof u === 'string'), 'usersToIgnore is an array of string user IDs');
+    assert(usersToIgnore.every((u) => typeof u === 'string'), 'usersToIgnore is an array of string user IDs');
     if (usersToIgnore.includes(userId)) {
       throw new Error('Users cannot ignore themselves');
     }
@@ -865,12 +895,11 @@ module.exports = class UsersService {
    */
   static async stopIgnoringUsers(userId, usersToStopIgnoring) {
     assert(Array.isArray(usersToStopIgnoring), 'usersToStopIgnoring is an array');
-    assert(usersToStopIgnoring.every(u => typeof u === 'string'), 'usersToStopIgnoring is an array of string user IDs');
+    assert(usersToStopIgnoring.every((u) => typeof u === 'string'), 'usersToStopIgnoring is an array of string user IDs');
     await UserModel.update({id: userId}, {
       $pullAll:  {
         ignoresUsers: usersToStopIgnoring
       }
     });
-    console.log('Mongo wrote stopIgnoringUsers', usersToStopIgnoring);
   }
 };

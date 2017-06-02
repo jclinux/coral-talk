@@ -22,15 +22,16 @@ const Comment = {
     });
   },
   replyCount({id}, {excludeIgnored}, {user, loaders: {Comments}}) {
+
+    // TODO: remove
     if (user && excludeIgnored) {
-      return Comments.countByParentIDPersonalized({id, excludeIgnored});      
+      return Comments.countByParentIDPersonalized({id, excludeIgnored});
     }
-    return Comments.countByParentID.load(id);      
+    return Comments.countByParentID.load(id);
   },
   actions({id}, _, {user, loaders: {Actions}}) {
 
-    // Only return the actions if the user is not an admin.
-    if (user && user.hasRoles('ADMIN')) {
+    if (user && user.can('SEARCH_ACTIONS')) {
       return Actions.getByID.load(id);
     }
 
@@ -45,6 +46,14 @@ const Comment = {
   },
   asset({asset_id}, _, {loaders: {Assets}}) {
     return Assets.getByID.load(asset_id);
+  },
+  async editing(comment, _, {loaders: {Settings}}) {
+    const settings = await Settings.load();
+    const editableUntil = new Date(Number(comment.created_at) + settings.editCommentWindowLength);
+    return {
+      edited: comment.edited,
+      editableUntil: editableUntil
+    };
   }
 };
 
