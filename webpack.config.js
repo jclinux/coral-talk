@@ -146,9 +146,26 @@ if (cssOverrides && cssOverrides.length) {
         .split('/')
         .join('\\/')
         .replace('.css', '\\.css$')
+
+      // Set up temp css overrides dir
+      const tmpCssDirPath = path.resolve(__dirname, 'tmp-css-overrides');
+      fs.ensureDirSync(tmpCssDirPath);
+
+      // Copy old CSS to temp dir
+      // @todo Account for duplicate filenames
+      const tmpPath = path.join(tmpCssDirPath, path.basename(oldPath));
+      fs.copySync(oldPath, tmpPath, { overwrite: true });
+
+      // Append new file to old file
+      fs.appendFileSync(
+        tmpPath,
+        ("\n\n" + fs.readFileSync(newPath, { encoding: 'utf8' }))
+      );
+
+      // @todo Watch newPath
       config.plugins.push(new webpack.NormalModuleReplacementPlugin(
         new RegExp(regExpStr),
-        path.resolve(__dirname, newPath)
+        path.resolve(__dirname, tmpPath)
       ));
     }
   });

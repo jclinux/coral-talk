@@ -52,5 +52,6 @@ plugins/*
 !plugins/talk-plugin-slack-notifications
 
 css-overrides.json
+tmp-css-overrides
 
 **/node_modules/*
