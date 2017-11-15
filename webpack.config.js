@@ -7,6 +7,7 @@ const _ = require('lodash');
 const Copy = require('copy-webpack-plugin');
 const {LicenseWebpackPlugin} = require('license-webpack-plugin');
 const watch = require('glob-watcher');
+const md5Hex = require('md5-hex');
 const webpack = require('webpack');
 const debug = require('debug')('talk:webpack');
 
@@ -166,7 +167,8 @@ if (cssOverrides && cssOverrides.length) {
         .join('\\/')
         .replace('.css', '\\.css$')
 
-      const tmpPath = path.join(tmpCssDirPath, path.basename(oldPath));
+      const oldPathHash = md5Hex(oldPath).slice(0,5);
+      const tmpPath = path.join(tmpCssDirPath, `${oldPathHash}_${path.basename(oldPath)}`);
       appendTmpCssOverride(oldPath, newPath, tmpPath);
 
       config.plugins.push(new webpack.NormalModuleReplacementPlugin(
