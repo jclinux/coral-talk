@@ -103,6 +103,7 @@
     "file-loader": "^0.11.2",
     "form-data": "^2.3.1",
     "fs-extra": "^4.0.1",
+    "glob-watcher": "^4.0.0",
     "gql-merge": "^0.0.4",
     "graphql": "^0.9.1",
     "graphql-ast-tools": "0.2.3",
