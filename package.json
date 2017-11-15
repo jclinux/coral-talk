@@ -133,6 +133,7 @@
     "lodash": "^4.16.6",
     "marked": "^0.3.6",
     "material-design-lite": "^1.2.1",
+    "md5-hex": "^2.0.0",
     "metascraper": "1.0.7",
     "minimist": "^1.2.0",
     "moment": "^2.18.1",
