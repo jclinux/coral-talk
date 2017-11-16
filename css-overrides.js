@@ -31,6 +31,9 @@ function doCssOverrides() {
     cssOverrides.forEach(({ oldPath, newPath }) => {
       // Must both be CSS files
       if (oldPath.endsWith('.css') && newPath.endsWith('.css')) {
+        console.log(`
+          Appending ${newPath} to ${oldPath}
+        `);
         const regExpStr = oldPath
           .split('/')
           .join('\\/')
