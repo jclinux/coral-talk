@@ -141,7 +141,7 @@ const config = {
 //==============================================================================
 const cssOverrides = doCssOverrides();
 if (cssOverrides.length) {
-  config.plugins.concat(cssOverrides);
+  config.plugins.push(...cssOverrides);
 }
 
 //==============================================================================
