@@ -150,6 +150,16 @@ function appendTmpCssOverride(oldPath, newPath, tmpPath) {
   fs.appendFileSync(tmpPath, newStylesStr);
 }
 
+function appendTmpEjsOverride(oldPath, newPath, tmpPath) {
+  // Copy old CSS to temp dir
+  // @todo Account for duplicate file basenames
+  fs.copySync(oldPath, tmpPath, { overwrite: true });
+
+  // Append new file to old file
+  const newEjsStr = "\n\n" + fs.readFileSync(newPath);
+  fs.appendFileSync(tmpPath, newEjsStr);
+}
+
 const cssOverrides = fs.readJsonSync(path.resolve(__dirname, 'css-overrides.json'), { throws: false });
 if (cssOverrides && cssOverrides.length) {
 
@@ -176,6 +186,25 @@ if (cssOverrides && cssOverrides.length) {
       ));
 
       newPathsMap[path.resolve(__dirname, newPath)] = { newPath, oldPath, tmpPath };
+    } if (oldPath.endsWith('.ejs') && newPath.endsWith('.ejs')) {
+      const regExpStr = oldPath
+        .split('/')
+        .join('\\/')
+        .replace('.ejs', '\\.ejs$')
+
+      const oldPathHash = md5Hex(oldPath).slice(0,5);
+      const tmpPath = path.join(tmpCssDirPath, `${oldPathHash}_${path.basename(oldPath)}`);
+      appendTmpEjsOverride(oldPath, newPath, tmpPath);
+
+      /// below is confusing
+      config.plugins.push(new webpack.NormalModuleReplacementPlugin(
+        new RegExp(regExpStr),
+        path.resolve(__dirname, tmpPath)
+      ));
+      console.log(config.plugins);
+
+      newPathsMap[path.resolve(__dirname, newPath)] = { newPath, oldPath, tmpPath };
+
     }
   });
 
@@ -184,6 +213,7 @@ if (cssOverrides && cssOverrides.length) {
     if (newPathsMap.hasOwnProperty(path)) {
       const { newPath, oldPath, tmpPath } = newPathsMap[path];
       appendTmpCssOverride(oldPath, newPath, tmpPath);
+      appendTmpEjsOverride(oldPath, newPath, tmpPath);
     }
   });
 }
