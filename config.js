@@ -196,6 +196,12 @@ const CONFIG = {
   // reported queue from comments after this was enabled and from reports
   // against the staff members user account.
   IGNORE_FLAGS_AGAINST_STAFF: process.env.TALK_DISABLE_IGNORE_FLAGS_AGAINST_STAFF !== 'TRUE',
+
+  //------------------------------------------------------------------------------
+  // Google
+  //------------------------------------------------------------------------------
+  // @see: https://github.com/coralproject/talk/issues/1168
+  GOOGLE_CLIENT_ID: process.env.TALK_GOOGLE_CLIENT_ID
 };
 
 //==============================================================================

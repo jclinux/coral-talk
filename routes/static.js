@@ -1,0 +1,15 @@
+const {
+  RECAPTCHA_PUBLIC,
+  WEBSOCKET_LIVE_URI,
+  GOOGLE_CLIENT_ID,
+} = require('../config');
+const {
+  STATIC_URL,
+} = require('../url');
+
+module.exports.data = {
+  TALK_RECAPTCHA_PUBLIC: RECAPTCHA_PUBLIC,
+  TALK_GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID,
+  LIVE_URI: WEBSOCKET_LIVE_URI,
+  STATIC_URL,
+};
