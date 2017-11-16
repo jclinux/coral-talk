@@ -48,6 +48,10 @@ const config = {
         include: pluginsPath
       },
       {
+        test: /\.(png|woff|woff2|eot|ttf|svg)$/,
+        loader: 'url-loader?limit=100000'
+      },
+      {
         loader: 'babel-loader',
         exclude: /node_modules/,
         test: /\.js$/,
