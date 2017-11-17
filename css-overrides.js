@@ -18,6 +18,16 @@ function appendTmpCssOverride(oldPath, newPath, tmpPath) {
   fs.appendFileSync(tmpPath, newStylesStr);
 }
 
+function watchFiles(newPathsMap) {
+  const watcher = watch(Object.keys(newPathsMap));
+  watcher.on('change', (path) => {
+    if (newPathsMap.hasOwnProperty(path)) {
+      const { newPath, oldPath, tmpPath } = newPathsMap[path];
+      appendTmpCssOverride(oldPath, newPath, tmpPath);
+    }
+  });
+}
+
 function doCssOverrides() {
   const plugins = [];
   const cssOverrides = fs.readJsonSync(path.resolve(__dirname, 'css-overrides.json'), { throws: false });
@@ -43,22 +53,24 @@ function doCssOverrides() {
         const tmpPath = path.join(tmpCssDirPath, `${oldPathHash}_${path.basename(oldPath)}`);
         appendTmpCssOverride(oldPath, newPath, tmpPath);
 
+        // Add Webpack plugin instance to output array
         plugins.push(new webpack.NormalModuleReplacementPlugin(
           new RegExp(regExpStr),
           path.resolve(__dirname, tmpPath)
         ));
 
+        // Add replaced paths to map
         newPathsMap[path.resolve(__dirname, newPath)] = { newPath, oldPath, tmpPath };
       }
     });
 
-    const watcher = watch(Object.keys(newPathsMap));
-    watcher.on('change', (path) => {
-      if (newPathsMap.hasOwnProperty(path)) {
-        const { newPath, oldPath, tmpPath } = newPathsMap[path];
-        appendTmpCssOverride(oldPath, newPath, tmpPath);
-      }
-    });
+    console.log(newPathsMap);
+
+    if (process.env.NODE_ENV !== 'production') {
+      watchFiles(newPathsMap);
+    }
+  } else {
+    console.log('css-overrides.json not found or invalid');
   }
 
   return plugins;
