@@ -137,11 +137,9 @@ const config = {
 };
 
 //==============================================================================
-// CSS overrides resolver
+// CSS overrides resolver plugins
 //==============================================================================
-console.log('Attempting CSS overrides');
 const cssOverrides = doCssOverrides();
-console.log(`Found ${cssOverrides.length} overrides`);
 if (cssOverrides.length) {
   config.plugins.push(...cssOverrides);
 }

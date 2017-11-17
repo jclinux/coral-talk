@@ -64,8 +64,6 @@ function doCssOverrides() {
       }
     });
 
-    console.log(newPathsMap);
-
     if (process.env.NODE_ENV !== 'production') {
       watchFiles(newPathsMap);
     }
