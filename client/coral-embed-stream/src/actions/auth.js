@@ -131,9 +131,7 @@ export const fetchSignIn = (formData) => {
 
     return rest('/auth/local', {method: 'POST', body: formData})
       .then(({token}) => {
-        if (!bowser.safari && !bowser.ios) {
-          dispatch(handleAuthToken(token));
-        }
+        dispatch(handleAuthToken(token));
         dispatch(hideSignInDialog());
       })
       .catch((error) => {

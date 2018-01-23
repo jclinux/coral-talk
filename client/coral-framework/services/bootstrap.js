@@ -52,13 +52,10 @@ const getAuthToken = (store, storage) => {
     // if an auth_token exists in config, use it.
     return state.config.auth_token;
 
-  } else if (!bowser.safari && !bowser.ios && storage) {
-
-    // Use local storage auth tokens where there's a stable api.
-    return storage.getItem('token');
   }
 
-  return null;
+  // Use local storage auth tokens where there's a stable api.
+  return storage.getItem('token') || null;
 };
 
 /**
