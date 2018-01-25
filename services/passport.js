@@ -80,8 +80,6 @@ const HandleGenerateCredentials = (req, res, next) => (err, user) => {
   // Generate the token to re-issue to the frontend.
   const token = GenerateToken(user);
 
-  SetTokenForSafari(req, res, token);
-
   // Send back the details!
   res.json({user, token});
 };
