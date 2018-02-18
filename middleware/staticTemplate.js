@@ -10,6 +10,8 @@ const {
   WEBSOCKET_LIVE_URI,
 } = require('../config');
 
+const SettingsService = require('../services/settings');
+
 // TEMPLATE_LOCALS stores the static data that is provided as a `text/json` on
 // to the client from the template.
 const TEMPLATE_LOCALS = {
@@ -33,7 +35,14 @@ const attachLocals = (locals) => {
   }
 };
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
+  try {
+    // Attach the custom css url.
+    const { customCssUrl } = await SettingsService.retrieve('customCssUrl');
+    res.locals.customCssUrl = customCssUrl;
+  } catch (err) {
+    console.warn(err);
+  }
 
   // Always attach the locals.
   attachLocals(res.locals);
