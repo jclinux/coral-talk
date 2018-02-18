@@ -158,24 +158,24 @@ async function ValidateUserLogin(loginProfile, user, done) {
  * Revoke the token on the request.
  */
 const HandleLogout = async (req, res, next) => {
-  const {jwt} = req;
-
-  const now = new Date();
-  const expiry = (jwt.exp - now.getTime() / 1000).toFixed(0);
-
   try {
-    await client().set(`jtir[${jwt.jti}]`, now.toISOString(), 'EX', expiry);
+    const {jwt} = req;
+    if (jwt) {
+      const now = new Date();
+      const expiry = (jwt.exp - now.getTime() / 1000).toFixed(0);
+      await client().set(`jtir[${jwt.jti}]`, now.toISOString(), 'EX', expiry);
+    }
+
+    // Only clear the cookie on logout if enabled.
+    if (JWT_CLEAR_COOKIE_LOGOUT) {
+      debug('clearing the login cookie');
+      res.clearCookie(JWT_SIGNING_COOKIE_NAME);
+    }
+
+    res.status(204).end();
   } catch (err) {
     return next(err);
   }
-
-  // Only clear the cookie on logout if enabled.
-  if (JWT_CLEAR_COOKIE_LOGOUT) {
-    debug('clearing the login cookie');
-    res.clearCookie(JWT_SIGNING_COOKIE_NAME);
-  }
-
-  res.status(204).end();
 };
 
 const checkGeneralTokenBlacklist = (jwt) => client().get(`jtir[${jwt.jti}]`)
