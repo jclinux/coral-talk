@@ -15,7 +15,7 @@ const Actions = require('../services/actions');
 const Assets = require('../services/assets');
 const Cache = require('../services/cache');
 const Comments = require('../services/comments');
-const DomainList = require('../services/domainlist');
+const DomainList = require('../services/domain_list');
 const I18n = require('../services/i18n');
 const Jwt = require('../services/jwt');
 const Karma = require('../services/karma');
@@ -24,6 +24,7 @@ const Limit = require('../services/limit');
 const Mailer = require('../services/mailer');
 const Metadata = require('../services/metadata');
 const Migration = require('../services/migration');
+const Moderation = require('../services/moderation');
 const Mongoose = require('../services/mongoose');
 const Passport = require('../services/passport');
 const Plugins = require('../services/plugins');
@@ -62,6 +63,7 @@ const connectors = {
     Mailer,
     Metadata,
     Migration,
+    Moderation,
     Mongoose,
     Passport,
     Plugins,
@@ -79,9 +81,12 @@ const connectors = {
   },
 };
 
-module.exports = Plugins.get('server', 'connectors').reduce((defaultConnectors, {plugin, connectors: pluginConnectors}) => {
-  debug(`adding plugin '${plugin.name}'`);
+module.exports = Plugins.get('server', 'connectors').reduce(
+  (defaultConnectors, { plugin, connectors: pluginConnectors }) => {
+    debug(`adding plugin '${plugin.name}'`);
 
-  // Merge in the plugin connectors.
-  return merge(defaultConnectors, pluginConnectors);
-}, connectors);
+    // Merge in the plugin connectors.
+    return merge(defaultConnectors, pluginConnectors);
+  },
+  connectors
+);

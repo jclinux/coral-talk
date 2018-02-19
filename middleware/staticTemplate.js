@@ -1,16 +1,8 @@
-const {
-  BASE_URL,
-  BASE_PATH,
-  MOUNT_PATH,
-  STATIC_URL,
-} = require('../url');
-
-const {
-  RECAPTCHA_PUBLIC,
-  WEBSOCKET_LIVE_URI,
-} = require('../config');
-
 const SettingsService = require('../services/settings');
+
+const { BASE_URL, BASE_PATH, MOUNT_PATH, STATIC_URL } = require('../url');
+
+const { RECAPTCHA_PUBLIC, WEBSOCKET_LIVE_URI } = require('../config');
 
 // TEMPLATE_LOCALS stores the static data that is provided as a `text/json` on
 // to the client from the template.
@@ -26,8 +18,8 @@ const TEMPLATE_LOCALS = {
   },
 };
 
-// attachLocals will attach the locals to the response only.
-const attachLocals = (locals) => {
+// attachStaticLocals will attach the locals to the response only.
+const attachStaticLocals = locals => {
   for (const key in TEMPLATE_LOCALS) {
     const value = TEMPLATE_LOCALS[key];
 
@@ -45,10 +37,11 @@ module.exports = async (req, res, next) => {
   }
 
   // Always attach the locals.
-  attachLocals(res.locals);
+  attachStaticLocals(res.locals);
 
   // Forward the request.
   next();
 };
 
-module.exports.attachLocals = attachLocals;
+module.exports.attachStaticLocals = attachStaticLocals;
+module.exports.TEMPLATE_LOCALS = TEMPLATE_LOCALS;

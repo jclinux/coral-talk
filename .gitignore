@@ -13,6 +13,7 @@ client/coral-framework/graphql/introspection.json
 .idea/
 *.swp
 *.DS_STORE
+.prettierrc.json
 
 coverage/
 test/e2e/reports/
@@ -22,6 +23,7 @@ browserstack.err
 
 plugins.json
 plugins/*
+!plugins/talk-plugin-akismet
 !plugins/talk-plugin-facebook-auth
 !plugins/talk-plugin-auth
 !plugins/talk-plugin-respect
@@ -55,3 +57,4 @@ css-overrides.json
 tmp-css-overrides
 
 **/node_modules/*
+yarn-error.log
