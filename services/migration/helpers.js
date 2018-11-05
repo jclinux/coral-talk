@@ -10,8 +10,14 @@ const processUpdates = async (model, updates) => {
   // Create a new batch operation.
   const bulk = model.collection.initializeUnorderedBulkOp();
 
-  for (const { query, update } of updates) {
-    bulk.find(query).updateOne(update);
+  for (const { query, update, replace } of updates) {
+    if (update) {
+      bulk.find(query).updateOne(update);
+    } else if (replace) {
+      bulk.find(query).replaceOne(replace);
+    } else {
+      throw new Error('invalid update object provided');
+    }
   }
 
   // Execute the bulk update operation.
@@ -21,7 +27,7 @@ const processUpdates = async (model, updates) => {
 const debugProcessStatistics = (count, totalCount) => {
   if (totalCount > 0) {
     debug(
-      `processed ${(count / totalCount * 100).toFixed(
+      `processed ${((count / totalCount) * 100).toFixed(
         2
       )}% (${count}/${totalCount}) updates`
     );

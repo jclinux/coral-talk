@@ -1,3 +1,6 @@
+ar:
+  talk-plugin-sort-most-replied:
+    label: الأكثر ردودً أولاً
 da:
   talk-plugin-sort-most-replied:
     label: Most replied first
@@ -9,7 +12,7 @@ de:
     label: Häufigste Antworten zuerst
 es:
   talk-plugin-sort-most-replied:
-    label: Most replied first
+    label: Más respondidas primero
 fr:
   talk-plugin-sort-most-replied:
     label: Most replied first
@@ -18,7 +21,7 @@ nl_NL:
     label: Meest beantwoord eerst
 pt_BR:
   talk-plugin-sort-most-replied:
-    label: Most replied first
+    label: Mais respondidos primeiro
 zh_CN:
   talk-plugin-sort-most-replied:
     label: "最多回复在前"

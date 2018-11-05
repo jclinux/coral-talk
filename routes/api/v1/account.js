@@ -17,7 +17,11 @@ router.get('/', authorization.needed(), (req, res, next) => {
  * @param {Function} verifier the function used to verify the token, will throw on error
  * @param {Object} error the error object to send back in the event an error is found
  */
-const tokenCheck = (verifier, error) => async (req, res, next) => {
+const tokenCheck = (verifier, error, ...whitelistedErrors) => async (
+  req,
+  res,
+  next
+) => {
   const { token = null, check = false } = req.body;
 
   if (check) {
@@ -26,10 +30,14 @@ const tokenCheck = (verifier, error) => async (req, res, next) => {
       // Verify the token.
       await verifier(token);
     } catch (err) {
+      if (whitelistedErrors.includes(err)) {
+        return next(err);
+      }
+
       // Log out the error, slurp it and send out the predefined error to the
       // error handler.
       console.error(err);
-      return next(error);
+      return next(new error());
     }
 
     res.status(204).end();
@@ -48,7 +56,8 @@ router.post(
   '/email/verify',
   tokenCheck(
     UsersService.verifyEmailConfirmationToken,
-    errors.ErrEmailVerificationToken
+    errors.ErrEmailVerificationToken,
+    errors.ErrEmailAlreadyVerified
   ),
   async (req, res, next) => {
     const { token } = req.body;
@@ -79,8 +88,8 @@ router.post('/password/reset', async (req, res, next) => {
         locals: {
           token,
         },
-        subject: 'Password Reset',
-        to: email,
+        subject: res.locals.t('email.password_reset.subject'),
+        email,
       });
     }
 
@@ -100,20 +109,11 @@ router.put(
   async (req, res, next) => {
     const { token, password } = req.body;
 
-    if (!password || password.length < 8) {
-      return next(errors.ErrPasswordTooShort);
-    }
-
     try {
-      let [user, redirect] = await UsersService.verifyPasswordResetToken(token);
-
-      // Change the users' password.
-      await UsersService.changePassword(user.id, password);
-
+      const { redirect } = await UsersService.resetPassword(token, password);
       res.json({ redirect });
-    } catch (e) {
-      console.error(e);
-      return next(errors.ErrNotAuthorized);
+    } catch (err) {
+      return next(err);
     }
   }
 );

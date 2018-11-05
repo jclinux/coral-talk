@@ -126,7 +126,6 @@ class AllCommentsPane extends React.Component {
 
   render() {
     const {
-      data,
       root,
       comments,
       commentClassNames,
@@ -164,7 +163,6 @@ class AllCommentsPane extends React.Component {
                 return (
                   <Comment
                     commentClassNames={commentClassNames}
-                    data={data}
                     root={root}
                     disableReply={disableReply}
                     setActiveReplyBox={setActiveReplyBox}
@@ -205,7 +203,6 @@ class AllCommentsPane extends React.Component {
 }
 
 AllCommentsPane.propTypes = {
-  data: PropTypes.object,
   root: PropTypes.object,
   comments: PropTypes.object,
   commentClassNames: PropTypes.array,
@@ -217,7 +214,7 @@ AllCommentsPane.propTypes = {
   asset: PropTypes.object,
   currentUser: PropTypes.object,
   postFlag: PropTypes.func,
-  postDontAgree: PropTypes.func,
+  postDontAgree: PropTypes.func.isRequired,
   loadNewReplies: PropTypes.func,
   deleteAction: PropTypes.func,
   showSignInDialog: PropTypes.func,

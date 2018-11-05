@@ -42,7 +42,6 @@ class ModerationActionsContainer extends React.Component {
   render() {
     return (
       <ModerationActions
-        data={this.props.data}
         root={this.props.root}
         asset={this.props.asset}
         comment={this.props.comment}
@@ -69,7 +68,10 @@ const mapDispatchToProps = dispatch =>
   );
 
 const enhance = compose(
-  connect(mapStateToProps, mapDispatchToProps),
+  connect(
+    mapStateToProps,
+    mapDispatchToProps
+  ),
   withFragments({
     root: gql`
       fragment TalkModerationActions_root on RootQuery {

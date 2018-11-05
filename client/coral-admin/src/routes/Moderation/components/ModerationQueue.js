@@ -15,6 +15,7 @@ import {
 } from 'react-virtualized';
 import throttle from 'lodash/throttle';
 import key from 'keymaster';
+import cn from 'classnames';
 
 const hasComment = (nodes, id) => nodes.some(node => node.id === id);
 
@@ -204,7 +205,7 @@ class ModerationQueue extends React.Component {
   }
 
   componentDidUpdate(prev) {
-    const { commentCount, selectedCommentId } = this.props;
+    const { selectedCommentId, hasNextPage } = this.props;
 
     const switchedToMultiMode = prev.singleView && !this.props.singleView;
     const switchedMode = prev.singleView !== this.props.singleView;
@@ -212,7 +213,6 @@ class ModerationQueue extends React.Component {
       prev.selectedCommentId !== selectedCommentId && selectedCommentId;
     const moderatedLastComment =
       prev.comments.length > 0 && this.getCommentCountWithoutDagling() === 0;
-    const hasMoreComment = commentCount > 0;
 
     if (switchedToMultiMode) {
       // Reflow virtual list.
@@ -223,7 +223,7 @@ class ModerationQueue extends React.Component {
       this.scrollToSelectedComment();
     }
 
-    if (moderatedLastComment && hasMoreComment) {
+    if (moderatedLastComment && hasNextPage) {
       this.props.loadMore();
     }
   }
@@ -240,10 +240,7 @@ class ModerationQueue extends React.Component {
     const index = view.findIndex(
       ({ id }) => id === this.props.selectedCommentId
     );
-    if (
-      index === view.length - 1 &&
-      this.getCommentCountWithoutDagling() !== this.props.commentCount
-    ) {
+    if (index === view.length - 1 && this.props.hasNextPage) {
       await this.props.loadMore();
       this.selectDown();
       return;
@@ -344,7 +341,6 @@ class ModerationQueue extends React.Component {
       child = (
         <div style={style}>
           <Comment
-            data={this.props.data}
             root={this.props.root}
             comment={comment}
             dangling={
@@ -385,6 +381,11 @@ class ModerationQueue extends React.Component {
       ...props
     } = this.props;
 
+    const rootClassName = cn(
+      styles.root,
+      `talk-admin-moderate-queue-${this.props.activeTab}`
+    );
+
     if (comments.length === 0) {
       return (
         <div className={styles.root}>
@@ -406,9 +407,8 @@ class ModerationQueue extends React.Component {
 
       const comment = comments[index];
       return (
-        <div className={styles.root}>
+        <div className={rootClassName}>
           <Comment
-            data={this.props.data}
             root={this.props.root}
             key={comment.id}
             comment={comment}
@@ -429,7 +429,7 @@ class ModerationQueue extends React.Component {
     const view = this.state.view;
 
     return (
-      <div className={styles.root}>
+      <div className={rootClassName}>
         <ViewMore
           viewMore={() => this.viewNewComments()}
           count={comments.length - view.length}
@@ -469,14 +469,12 @@ ModerationQueue.propTypes = {
   acceptComment: PropTypes.func.isRequired,
   commentBelongToQueue: PropTypes.func.isRequired,
   cleanUpQueue: PropTypes.func.isRequired,
-  commentCount: PropTypes.number.isRequired,
   loadMore: PropTypes.func.isRequired,
   singleView: PropTypes.bool,
   isLoadingMore: PropTypes.bool,
   hasNextPage: PropTypes.bool,
   comments: PropTypes.array,
   activeTab: PropTypes.string.isRequired,
-  data: PropTypes.object.isRequired,
   root: PropTypes.object.isRequired,
   currentUserId: PropTypes.string.isRequired,
 };

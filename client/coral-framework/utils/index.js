@@ -1,10 +1,12 @@
 import { gql } from 'react-apollo';
 import t from 'coral-framework/services/i18n';
 import union from 'lodash/union';
+import get from 'lodash/get';
 import { capitalize } from 'coral-framework/helpers/strings';
 import assignWith from 'lodash/assignWith';
 import mapValues from 'lodash/mapValues';
 export * from 'coral-framework/helpers/strings';
+export * from './url';
 
 export const getTotalActionCount = (type, comment) => {
   return comment.action_summaries
@@ -221,6 +223,13 @@ export function isCommentActive(commentStatus) {
   return ['NONE', 'ACCEPTED'].indexOf(commentStatus) >= 0;
 }
 
+export function isCommentDeleted(comment) {
+  return (
+    get(comment, 'body', null) === null ||
+    get(comment, 'deleted_at', null) !== null
+  );
+}
+
 export function getShallowChanges(a, b) {
   return union(Object.keys(a), Object.keys(b)).filter(key => a[key] !== b[key]);
 }
@@ -237,7 +246,11 @@ export function getTotalReactionsCount(actionSummaries) {
 
 // Like lodash merge but does not recurse into arrays.
 export function mergeExcludingArrays(objValue, srcValue) {
-  if (typeof srcValue === 'object' && !Array.isArray(srcValue)) {
+  if (
+    typeof srcValue === 'object' &&
+    !Array.isArray(srcValue) &&
+    srcValue !== null
+  ) {
     return assignWith({}, objValue, srcValue, mergeExcludingArrays);
   }
   return srcValue;
@@ -260,4 +273,24 @@ export function translateError(error) {
     return t('error.network_error');
   }
   return error.toString();
+}
+
+/**
+ * handlePopupAuth will optionally open a popup with the requested uri if the
+ * window is not already a popup.
+ *
+ * @param {String} uri the url to open the window? to
+ * @param {String} title the title of the new window? to open
+ * @param {String} features the features to use when opening a window?
+ */
+export function handlePopupAuth(
+  uri,
+  title = 'Login', // TODO: translate
+  features = 'menubar=0,resizable=0,width=500,height=550,top=200,left=500'
+) {
+  if (window.opener) {
+    window.location = uri;
+  } else {
+    window.open(uri, title, features);
+  }
 }

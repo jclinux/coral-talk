@@ -89,3 +89,9 @@
     display: inline-block;
   }
 }
+
+.statusDropdown {
+  width: 150px;
+  text-align: left;
+}
+

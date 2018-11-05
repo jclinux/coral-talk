@@ -1,7 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import Comment from './Comment';
+import Comment from '../containers/Comment';
 import LoadMore from './LoadMore';
+import BlankCommentHistory from './BlankCommentHistory';
 
 class CommentHistory extends React.Component {
   state = {
@@ -21,18 +22,20 @@ class CommentHistory extends React.Component {
   };
 
   render() {
-    const { link, comments, data, root } = this.props;
+    const { navigate, comments, root } = this.props;
+    if (!comments.nodes.length) {
+      return <BlankCommentHistory />;
+    }
     return (
-      <div>
+      <div className="talk-my-profile-comment-history">
         <div className="commentHistory__list">
           {comments.nodes.map((comment, i) => {
             return (
               <Comment
                 key={i}
-                data={data}
                 root={root}
                 comment={comment}
-                link={link}
+                navigate={navigate}
               />
             );
           })}
@@ -51,8 +54,7 @@ class CommentHistory extends React.Component {
 CommentHistory.propTypes = {
   comments: PropTypes.object.isRequired,
   loadMore: PropTypes.func,
-  link: PropTypes.func,
-  data: PropTypes.object,
+  navigate: PropTypes.func,
   root: PropTypes.object,
 };
 

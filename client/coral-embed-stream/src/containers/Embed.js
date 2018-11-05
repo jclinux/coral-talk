@@ -2,7 +2,6 @@ import React from 'react';
 import { compose, gql } from 'react-apollo';
 import { connect } from 'react-redux';
 import { bindActionCreators } from 'redux';
-import isEqual from 'lodash/isEqual';
 import get from 'lodash/get';
 import branch from 'recompose/branch';
 import renderComponent from 'recompose/renderComponent';
@@ -14,12 +13,11 @@ import {
   hideSignInDialog,
 } from '../actions/login';
 import { updateStatus } from 'coral-framework/actions/auth';
-import { fetchAssetSuccess } from '../actions/asset';
 import {
   getDefinitionName,
   getSlotFragmentSpreads,
 } from 'coral-framework/utils';
-import { withQuery } from 'coral-framework/hocs';
+import { withQuery, withPopupAuthHandler } from 'coral-framework/hocs';
 import Embed from '../components/Embed';
 import Stream from '../tabs/stream/containers/Stream';
 import AutomaticAssetClosure from './AutomaticAssetClosure';
@@ -43,7 +41,13 @@ class EmbedContainer extends React.Component {
           document: USER_BANNED_SUBSCRIPTION,
           updateQuery: (
             _,
-            { subscriptionData: { data: { userBanned: { state } } } }
+            {
+              subscriptionData: {
+                data: {
+                  userBanned: { state },
+                },
+              },
+            }
           ) => {
             notify('info', t('your_account_has_been_banned'));
             props.updateStatus(state.status);
@@ -53,7 +57,13 @@ class EmbedContainer extends React.Component {
           document: USER_SUSPENDED_SUBSCRIPTION,
           updateQuery: (
             _,
-            { subscriptionData: { data: { userSuspended: { state } } } }
+            {
+              subscriptionData: {
+                data: {
+                  userSuspended: { state },
+                },
+              },
+            }
           ) => {
             notify('info', t('your_account_has_been_suspended'));
             props.updateStatus(state.status);
@@ -63,7 +73,13 @@ class EmbedContainer extends React.Component {
           document: USERNAME_REJECTED_SUBSCRIPTION,
           updateQuery: (
             _,
-            { subscriptionData: { data: { usernameRejected: { state } } } }
+            {
+              subscriptionData: {
+                data: {
+                  usernameRejected: { state },
+                },
+              },
+            }
           ) => {
             notify('info', t('your_username_has_been_rejected'));
             props.updateStatus(state.status);
@@ -106,12 +122,6 @@ class EmbedContainer extends React.Component {
       // Refetch after login/logout.
       this.props.data.refetch();
       this.resubscribe(nextProps);
-    }
-
-    const { fetchAssetSuccess } = this.props;
-    if (!isEqual(nextProps.root.asset, this.props.root.asset)) {
-      // TODO: remove asset data from redux store.
-      fetchAssetSuccess(nextProps.root.asset);
     }
   }
 
@@ -298,7 +308,6 @@ EmbedContainer.propTypes = {
   activeTab: PropTypes.string,
   parentUrl: PropTypes.string,
   data: PropTypes.object,
-  fetchAssetSuccess: PropTypes.func,
   showSignInDialog: PropTypes.bool,
   signInDialogFocus: PropTypes.bool,
 };
@@ -322,7 +331,6 @@ const mapDispatchToProps = dispatch =>
   bindActionCreators(
     {
       setActiveTab,
-      fetchAssetSuccess,
       notify,
       focusSignInDialog,
       blurSignInDialog,
@@ -333,7 +341,11 @@ const mapDispatchToProps = dispatch =>
   );
 
 export default compose(
-  connect(mapStateToProps, mapDispatchToProps),
+  withPopupAuthHandler,
+  connect(
+    mapStateToProps,
+    mapDispatchToProps
+  ),
   branch(props => !props.checkedInitialLogin, renderComponent(Spinner)),
   withEmbedQuery
 )(EmbedContainer);

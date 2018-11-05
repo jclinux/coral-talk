@@ -1,6 +1,6 @@
 const User = require('../../../models/user');
 const Context = require('../../../graph/context');
-const errors = require('../../../errors');
+const { ErrNotAuthorized } = require('../../../errors');
 const SettingsService = require('../../../services/settings');
 
 const { expect } = require('chai');
@@ -31,6 +31,18 @@ describe('graph.Context', () => {
     });
   });
 
+  describe('#rootParent', () => {
+    it('can access the root context parent', () => {
+      const ctx = new Context({ test: 1 });
+      const ctx2 = new Context(ctx);
+      const ctx3 = new Context(ctx2);
+
+      const parent = ctx3.rootParent;
+
+      expect(parent).to.have.property('test', 1);
+    });
+  });
+
   describe('#constructor: without a user', () => {
     let c;
 
@@ -39,7 +51,7 @@ describe('graph.Context', () => {
     });
 
     it('creates a context without a user', done => {
-      expect(c).to.not.have.property('user');
+      expect(c.user).to.be.falsy;
 
       done();
     });
@@ -54,7 +66,7 @@ describe('graph.Context', () => {
           throw new Error('should not reach this point');
         })
         .catch(err => {
-          expect(err).to.be.equal(errors.ErrNotAuthorized);
+          expect(err).to.be.an.instanceof(ErrNotAuthorized);
         });
     });
   });

@@ -22,6 +22,7 @@ class Stories extends Component {
     const closed = !!(closedAt && new Date(closedAt).getTime() < Date.now());
     return (
       <Dropdown
+        toggleClassName={styles.statusDropdown}
         value={closed}
         onChange={value => this.props.onStatusChange(value, id)}
       >

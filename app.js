@@ -1,7 +1,9 @@
 const express = require('express');
-const morgan = require('morgan');
+const nunjucks = require('nunjucks');
+const cons = require('consolidate');
+const trace = require('./middleware/trace');
+const logging = require('./middleware/logging');
 const path = require('path');
-const uuid = require('uuid');
 const merge = require('lodash/merge');
 const helmet = require('helmet');
 const plugins = require('./services/plugins');
@@ -13,12 +15,9 @@ const { ENABLE_TRACING, APOLLO_ENGINE_KEY, PORT } = require('./config');
 
 const app = express();
 
-// Request Identity Middleware
-app.use((req, res, next) => {
-  req.id = uuid.v4();
-
-  next();
-});
+// Add the trace middleware first, it will create a request ID for each request
+// downstream.
+app.use(trace);
 
 //==============================================================================
 // PLUGIN PRE APPLICATION MIDDLEWARE
@@ -38,7 +37,7 @@ plugins.get('server', 'app').forEach(({ plugin, app: callback }) => {
 
 // Add the logging middleware only if we aren't testing.
 if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan('dev'));
+  app.use(logging.log);
 }
 
 if (ENABLE_TRACING && APOLLO_ENGINE_KEY) {
@@ -75,7 +74,26 @@ app.use(
 // VIEW CONFIGURATION
 //==============================================================================
 
-app.set('views', path.join(__dirname, 'views'));
+// configure the default views directory.
+const views = path.join(__dirname, 'views');
+app.set('views', views);
+
+// reconfigure nunjucks.
+cons.requires.nunjucks = nunjucks.configure(views, {
+  autoescape: true,
+  trimBlocks: true,
+  lstripBlocks: true,
+  watch: process.env.NODE_ENV === 'development',
+});
+
+// assign the nunjucks engine to .njk files.
+app.engine('njk', cons.nunjucks);
+
+// assign the ejs engine to .ejs and .html files.
+app.engine('ejs', cons.ejs);
+app.engine('html', cons.ejs);
+
+// set .ejs as the default extension.
 app.set('view engine', 'ejs');
 
 //==============================================================================
