@@ -12,12 +12,28 @@ const { MOUNT_PATH } = require('./url');
 const routes = require('./routes');
 const debug = require('debug')('talk:app');
 const { ENABLE_TRACING, APOLLO_ENGINE_KEY, PORT } = require('./config');
+const cors = require('cors');
 
 const app = express();
 
 // Add the trace middleware first, it will create a request ID for each request
 // downstream.
 app.use(trace);
+
+/**
+ * Enable CORS
+ *
+ * Manually mutate middleware stack to force CORS headers on responses
+ * from core Talk API routes, including the GraphQL route. Allows the site to
+ * make direct AJAX requests to Talk APIs without modifying core Talk code.
+ */
+app.use(cors({
+  origin: process.env.NR_ORIGIN || '*',
+  // Support JWT passed in cookie
+  credentials: true,
+  // Support IE 11
+  optionsSuccessStatus: 200,
+}));
 
 //==============================================================================
 // PLUGIN PRE APPLICATION MIDDLEWARE
