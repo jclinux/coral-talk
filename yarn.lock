@@ -123,6 +123,10 @@
   dependencies:
     graphql-ast-tools "^0.2.2"
 
+"@coralproject/talk-plugin-toxic-comments-study@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@coralproject/talk-plugin-toxic-comments-study/-/talk-plugin-toxic-comments-study-0.0.6.tgz#66acb085968d3c97bc91b83f93e918d27f7146bc"
+
 "@easyops/git-exec-and-restage@^1.0.4":
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/@easyops/git-exec-and-restage/-/git-exec-and-restage-1.0.4.tgz#51ee761def34502665dcfa1deb2bbd0e8a3f1ade"
