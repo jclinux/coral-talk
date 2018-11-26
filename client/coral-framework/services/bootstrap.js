@@ -22,6 +22,7 @@ import {
 } from 'coral-framework/services/storage';
 import { createHistory } from 'coral-framework/services/history';
 import { createIntrospection } from 'coral-framework/services/introspection';
+import { setStorageAuthToken } from 'coral-framework/services/auth';
 import introspectionData from 'coral-framework/graphql/introspection.json';
 import coreReducers from '../reducers';
 import { checkLogin as checkLoginAction } from '../actions/auth';
