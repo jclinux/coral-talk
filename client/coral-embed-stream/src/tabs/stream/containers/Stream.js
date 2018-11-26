@@ -24,7 +24,7 @@ import {
   viewAllComments,
 } from '../../../actions/stream';
 import Stream from '../components/Stream';
-import Comment from './Comment';
+import { default as Comment, singleCommentFragment } from './Comment';
 import { withFragments, withEmit } from 'coral-framework/hocs';
 import {
   getDefinitionName,
@@ -54,7 +54,11 @@ class StreamContainer extends React.Component {
       },
       updateQuery: (
         prev,
-        { subscriptionData: { data: { commentEdited } } }
+        {
+          subscriptionData: {
+            data: { commentEdited },
+          },
+        }
       ) => {
         // Ignore mutations from me.
         // TODO: need way to detect mutations created by this client, and allow mutations from other clients.
@@ -87,7 +91,14 @@ class StreamContainer extends React.Component {
       variables: {
         assetId: this.props.asset.id,
       },
-      updateQuery: (prev, { subscriptionData: { data: { commentAdded } } }) => {
+      updateQuery: (
+        prev,
+        {
+          subscriptionData: {
+            data: { commentAdded },
+          },
+        }
+      ) => {
         // Ignore mutations from me.
         // TODO: need way to detect mutations created by this client, and allow mutations from other clients.
         if (
@@ -265,7 +276,7 @@ StreamContainer.propTypes = {
   commentClassNames: PropTypes.array,
   setActiveStreamTab: PropTypes.func,
   postFlag: PropTypes.func,
-  postDontAgree: PropTypes.func,
+  postDontAgree: PropTypes.func.isRequired,
   deleteAction: PropTypes.func,
   showSignInDialog: PropTypes.func,
   currentUser: PropTypes.object,
@@ -282,7 +293,7 @@ StreamContainer.propTypes = {
   previousTab: PropTypes.string,
 };
 
-const commentFragment = gql`
+const streamCommentFragment = gql`
   fragment CoralEmbedStream_Stream_comment on Comment {
     id
     status
@@ -294,6 +305,18 @@ const commentFragment = gql`
   ${Comment.fragments.comment}
 `;
 
+const streamSingleCommentFragment = gql`
+  fragment CoralEmbedStream_Stream_singleComment on Comment {
+    id
+    status
+    user {
+      id
+    }
+    ...${getDefinitionName(singleCommentFragment)}
+  }
+  ${singleCommentFragment}
+`;
+
 const COMMENTS_ADDED_SUBSCRIPTION = gql`
   subscription CommentAdded($assetId: ID!, $excludeIgnored: Boolean) {
     commentAdded(asset_id: $assetId) {
@@ -303,7 +326,7 @@ const COMMENTS_ADDED_SUBSCRIPTION = gql`
       ...CoralEmbedStream_Stream_comment
     }
   }
-  ${commentFragment}
+  ${streamCommentFragment}
 `;
 
 const COMMENTS_EDITED_SUBSCRIPTION = gql`
@@ -351,14 +374,16 @@ const LOAD_MORE_QUERY = gql`
       endCursor
     }
   }
-  ${commentFragment}
+  ${streamCommentFragment}
 `;
 
 const slots = [
+  'commentInputDetailArea',
   'streamTabs',
   'streamTabsPrepend',
   'streamTabPanes',
   'streamFilter',
+  'stream',
 ];
 
 const fragments = {
@@ -398,7 +423,7 @@ const fragments = {
         ${nest(
           `
           parent {
-            ...CoralEmbedStream_Stream_comment
+            ...CoralEmbedStream_Stream_singleComment
             ...nest
           }
         `,
@@ -420,6 +445,8 @@ const fragments = {
         questionBoxIcon
         closedTimeout
         closedMessage
+        disableCommenting
+        disableCommentingMessage
         charCountEnable
         charCount
         requireEmailConfirmation
@@ -437,7 +464,8 @@ const fragments = {
       ...${getDefinitionName(Comment.fragments.asset)}
     }
     ${Comment.fragments.asset}
-    ${commentFragment}
+    ${streamCommentFragment}
+    ${streamSingleCommentFragment}
   `,
 };
 
@@ -452,7 +480,6 @@ const mapStateToProps = state => ({
   activeStreamTab: state.stream.activeTab,
   previousStreamTab: state.stream.previousTab,
   commentClassNames: state.stream.commentClassNames,
-  pluginConfig: state.config.plugin_config,
   sortOrder: state.stream.sortOrder,
   sortBy: state.stream.sortBy,
 });
@@ -472,7 +499,10 @@ const mapDispatchToProps = dispatch =>
 export default compose(
   withFragments(fragments),
   withEmit,
-  connect(mapStateToProps, mapDispatchToProps),
+  connect(
+    mapStateToProps,
+    mapDispatchToProps
+  ),
   withPostComment,
   // `talk-plugin-flags` has a custom error handling logic.
   withPostFlag({ notifyOnError: false }),

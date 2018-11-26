@@ -130,7 +130,9 @@ class People extends React.Component {
                             {user.username}
                           </button>
                           <span className={styles.email}>
-                            {user.profiles.map(({ id }) => id)}
+                            {user.email
+                              ? user.email
+                              : user.profiles.map(p => p.id).join(', ')}
                           </span>
                         </td>
                         <td className="mdl-data-table__cell--non-numeric">
@@ -174,7 +176,7 @@ class People extends React.Component {
                                   })
                                 }
                               >
-                                Suspend User
+                                {t('modqueue.suspend')}
                               </ActionsMenuItem>
                             )}
 
@@ -193,31 +195,38 @@ class People extends React.Component {
                                   })
                                 }
                               >
-                                Ban User
+                                {t('modqueue.ban_user_actions')}
                               </ActionsMenuItem>
                             )}
                           </ActionsMenu>
                         </td>
                         <td className="mdl-data-table__cell--non-numeric">
                           <Dropdown
-                            containerClassName="talk-admin-community-people-dd-role"
+                            toggleClassName={cn(
+                              'talk-admin-community-people-dd-role',
+                              styles.roleDropdown
+                            )}
                             value={user.role}
                             placeholder={t('community.role')}
                             onChange={role => setUserRole(user.id, role)}
                           >
                             <Option
+                              className={styles.roleOption}
                               value={COMMENTER}
                               label={t('community.commenter')}
                             />
                             <Option
+                              className={styles.roleOption}
                               value={STAFF}
                               label={t('community.staff')}
                             />
                             <Option
+                              className={styles.roleOption}
                               value={MODERATOR}
                               label={t('community.moderator')}
                             />
                             <Option
+                              className={styles.roleOption}
                               value={ADMIN}
                               label={t('community.admin')}
                             />

@@ -1,4 +1,4 @@
-const errors = require('../../errors');
+const { ErrNotFound, ErrNotAuthorized } = require('../../errors');
 const { CREATE_ACTION, DELETE_ACTION } = require('../../perms/constants');
 const { IGNORE_FLAGS_AGAINST_STAFF } = require('../../config');
 
@@ -11,11 +11,20 @@ const { IGNORE_FLAGS_AGAINST_STAFF } = require('../../config');
  * @return {Promise}      resolves to the referenced item
  */
 const getActionItem = async (ctx, { item_id, item_type }) => {
-  const { loaders: { Comments, Users } } = ctx;
+  const {
+    loaders: { Comments, Users },
+  } = ctx;
 
   switch (item_type) {
-    case 'COMMENTS':
-      return Comments.get.load(item_id);
+    case 'COMMENTS': {
+      // Get a comment by ID, unless the comment is deleted, then return null.
+      const comment = await Comments.get.load(item_id);
+      if (comment.deleted_at) {
+        return null;
+      }
+
+      return comment;
+    }
     case 'USERS':
       return Users.getByID.load(item_id);
     default:
@@ -35,12 +44,18 @@ const createAction = async (
   ctx,
   { item_id, item_type, action_type, group_id, metadata = {} }
 ) => {
-  const { user = {}, pubsub, connectors: { services: { Actions } } } = ctx;
+  const {
+    user = {},
+    pubsub,
+    connectors: {
+      services: { Actions },
+    },
+  } = ctx;
 
   // Gets the item referenced by the action.
   const item = await getActionItem(ctx, { item_id, item_type });
   if (!item || item === null) {
-    throw errors.ErrNotFound;
+    throw new ErrNotFound();
   }
 
   // If we are ignoring flags against staff, ensure that the target isn't a
@@ -59,7 +74,7 @@ const createAction = async (
     // The item is a user, and this is a flag. Check to see if they are staff,
     // if they are, don't permit the flag.
     if (item.isStaff()) {
-      throw errors.ErrNotAuthorized;
+      throw new ErrNotAuthorized();
     }
   }
 
@@ -100,7 +115,12 @@ const createAction = async (
  * @return {Promise}     resolves to the deleted action, or null if not found.
  */
 const deleteAction = (ctx, { id }) => {
-  const { user, connectors: { services: { Actions } } } = ctx;
+  const {
+    user,
+    connectors: {
+      services: { Actions },
+    },
+  } = ctx;
 
   return Actions.delete({ id, user_id: user.id });
 };
@@ -108,8 +128,8 @@ const deleteAction = (ctx, { id }) => {
 module.exports = ctx => {
   let mutators = {
     Action: {
-      create: () => Promise.reject(errors.ErrNotAuthorized),
-      delete: () => Promise.reject(errors.ErrNotAuthorized),
+      create: () => Promise.reject(new ErrNotAuthorized()),
+      delete: () => Promise.reject(new ErrNotAuthorized()),
     },
   };
 

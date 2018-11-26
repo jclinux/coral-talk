@@ -7,12 +7,14 @@ import { createReduxEmitter } from './events';
 import { createRestClient } from './rest';
 import thunk from 'redux-thunk';
 import { loadTranslations } from './i18n';
+import bowser from 'bowser';
 import noop from 'lodash/noop';
 import { BASE_PATH } from 'coral-framework/constants/url';
 import { createPluginsService } from './plugins';
 import { createNotificationService } from './notification';
 import { createGraphQLRegistry } from './graphqlRegistry';
 import { createGraphQLService } from './graphql';
+import { createPostMessage } from './postMessage';
 import globalFragments from 'coral-framework/graphql/fragments';
 import {
   createStorage,
@@ -23,7 +25,11 @@ import { createIntrospection } from 'coral-framework/services/introspection';
 import introspectionData from 'coral-framework/graphql/introspection.json';
 import coreReducers from '../reducers';
 import { checkLogin as checkLoginAction } from '../actions/auth';
-import { mergeConfig } from '../actions/config';
+import {
+  mergeConfig,
+  enablePluginsDebug,
+  disablePluginsDebug,
+} from '../actions/config';
 import { setAuthToken, logout } from '../actions/auth';
 
 /**
@@ -36,9 +42,34 @@ const getAuthToken = (store, storage) => {
   let state = store.getState();
 
   if (state.config && state.config.auth_token) {
-    // if an auth_token exists in config, use it.
-    return state.config.auth_token;
-  } else if (storage) {
+    // If the embed is called with `embed.login(token)`, and the browser is not
+    // capable of storing the token in localStorage, then we would have
+    // persisted it to the redux state.
+    return state.config.auth_token || state.auth.token;
+  } else if (location.hash && location.hash.startsWith('#access_token=')) {
+    // Check to see if the access token is living in the URL as a hash.
+    const token = location.hash.substring(14);
+
+    history.replaceState(
+      {},
+      document.title,
+      window.location.pathname + window.location.search
+    );
+
+    // Once we clear the hash above, this login method will not persist across
+    // refreshes. We will need to persist the token to storage if it's
+    // available.
+    if (storage) {
+      setStorageAuthToken(storage, token);
+    }
+
+    return token;
+  } else if (
+    !bowser.safari &&
+    !bowser.ios &&
+    storage &&
+    storage.getItem('token')
+  ) {
     // Use local storage auth tokens where there's a stable api.
     return storage.getItem('token');
   }
@@ -61,8 +92,19 @@ function initExternalConfig({ store, pym, inIframe }) {
   }
   return new Promise(resolve => {
     pym.sendMessage('getConfig');
-    pym.onMessage('config', config => {
-      store.dispatch(mergeConfig(JSON.parse(config)));
+    pym.onMessage('config', rawConfig => {
+      const config = JSON.parse(rawConfig);
+      if (config.plugin_config) {
+        // @Deprecated
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(
+            'Deprecation Warning: `config.plugin_config` will be phased out soon, please replace `config.plugin_config  with `config.plugins_config`'
+          );
+        }
+        config.plugins_config = config.plugin_config;
+        delete config.plugin_config;
+      }
+      store.dispatch(mergeConfig(config));
       resolve();
     });
   });
@@ -107,7 +149,7 @@ export async function createContext({
     // Try to get the token from localStorage. If it isn't here, it may
     // be passed as a cookie.
 
-    // NOTE: THIS IS ONLY EVER EVALUATED ONCE, IN ORDER TO SEND A DIFFERNT
+    // NOTE: THIS IS ONLY EVER EVALUATED ONCE, IN ORDER TO SEND A DIFFERENT
     // TOKEN YOU MUST DISCONNECT AND RECONNECT THE WEBSOCKET CLIENT.
     return getAuthToken(store, localStorage);
   };
@@ -118,7 +160,7 @@ export async function createContext({
   });
 
   const staticConfig = getStaticConfiguration();
-  let { LIVE_URI: liveUri } = staticConfig;
+  let { LIVE_URI: liveUri, BASE_ORIGIN: origin } = staticConfig;
   if (liveUri == null) {
     // The protocol must match the origin protocol, secure/insecure.
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -127,6 +169,8 @@ export async function createContext({
     // with the live path appended to it.
     liveUri = `${protocol}://${location.host}${BASE_PATH}api/v1/live`;
   }
+
+  const postMessage = createPostMessage(origin);
 
   const client = createClient({
     uri: `${BASE_PATH}api/v1/graph/ql`,
@@ -158,6 +202,7 @@ export async function createContext({
     pymLocalStorage,
     pymSessionStorage,
     inIframe,
+    postMessage,
   };
 
   // Load framework fragments.
@@ -210,6 +255,14 @@ export async function createContext({
 
     pym.onMessage('logout', () => {
       store.dispatch(logout());
+    });
+
+    pym.onMessage('enablePluginsDebug', () => {
+      store.dispatch(enablePluginsDebug());
+    });
+
+    pym.onMessage('disablePluginsDebug', () => {
+      store.dispatch(disablePluginsDebug());
     });
   }
 

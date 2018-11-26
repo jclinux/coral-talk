@@ -1,3 +1,6 @@
+ar:
+  talk-plugin-sort-most-respected:
+    label: الأكثر احتراماً أولاً
 da:
   talk-plugin-sort-most-respected:
     label: Most respected first
@@ -9,7 +12,7 @@ de:
     label: Häufigste "Respektiert" zuerst
 es:
   talk-plugin-sort-most-respected:
-    label: Most respected first
+    label: Más respetadas primero
 fr:
   talk-plugin-sort-most-respected:
     label: Most respected first
@@ -18,7 +21,7 @@ nl_NL:
     label: Meest gerespecteerd eerst
 pt_BR:
   talk-plugin-sort-most-respected:
-    label: Most respected first
+    label: Mais respeitados primeiro
 zh_CN:
   talk-plugin-sort-most-respected:
     label: "最多被赞在前"

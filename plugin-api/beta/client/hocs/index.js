@@ -6,11 +6,18 @@ export {
   withEmit,
   excludeIf,
   withFragments,
+  withMutation,
   withForgotPassword,
   withSignIn,
   withSignUp,
   withResendEmailConfirmation,
   withSetUsername,
+  withEnumValues,
+  withVariables,
+  withFetchMore,
+  withSubscribeToMore,
+  withRefetch,
+  withGraphQLExtension,
 } from 'coral-framework/hocs';
 export {
   withIgnoreUser,
@@ -18,4 +25,7 @@ export {
   withUnbanUser,
   withStopIgnoringUser,
   withSetCommentStatus,
+  withChangePassword,
+  withChangeUsername,
 } from 'coral-framework/graphql/mutations';
+export { compose } from 'recompose';

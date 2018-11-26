@@ -15,6 +15,7 @@
 
 .main {
   min-width: 70%;
+  max-width: 100%;
 }
 
 .sidebar {
@@ -30,6 +31,7 @@
   font-weight: bold;
   font-size: 12px;
   color: #757575;
+  cursor: pointer;
 }
 
 .commentSummary {

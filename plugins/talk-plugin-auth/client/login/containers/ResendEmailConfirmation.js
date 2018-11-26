@@ -41,7 +41,7 @@ ResendEmailConfirmatonContainer.propTypes = {
   success: PropTypes.bool.isRequired,
   loading: PropTypes.bool.isRequired,
   resendEmailConfirmation: PropTypes.func.isRequired,
-  errorMessage: PropTypes.string.isRequired,
+  errorMessage: PropTypes.string,
   setView: PropTypes.func.isRequired,
   email: PropTypes.string.isRequired,
 };
@@ -59,6 +59,9 @@ const mapDispatchToProps = dispatch =>
   );
 
 export default compose(
-  connect(mapStateToProps, mapDispatchToProps),
+  connect(
+    mapStateToProps,
+    mapDispatchToProps
+  ),
   withResendEmailConfirmation
 )(ResendEmailConfirmatonContainer);

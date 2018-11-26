@@ -3,7 +3,7 @@ import { SelectField, Option } from 'react-mdl-selectfield';
 import t from 'coral-framework/services/i18n';
 import styles from './StreamSettings.css';
 import { Textfield } from 'react-mdl';
-import { Icon, TextArea } from 'coral-ui';
+import { Icon } from 'coral-ui';
 import PropTypes from 'prop-types';
 import Slot from 'coral-framework/components/Slot';
 import MarkdownEditor from 'coral-framework/components/MarkdownEditor';
@@ -66,8 +66,8 @@ class StreamSettings extends React.Component {
     this.props.updatePending({ updater });
   };
 
-  updateClosedMessage = event => {
-    const updater = { closedMessage: { $set: event.target.value } };
+  updateClosedMessage = value => {
+    const updater = { closedMessage: { $set: value } };
     this.props.updatePending({ updater });
   };
 
@@ -79,6 +79,20 @@ class StreamSettings extends React.Component {
     const updater = {
       editCommentWindowLength: { $set: milliseconds || value },
     };
+    this.props.updatePending({ updater });
+  };
+
+  updateDisableCommenting = () => {
+    const updater = {
+      disableCommenting: {
+        $set: !this.props.settings.disableCommenting,
+      },
+    };
+    this.props.updatePending({ updater });
+  };
+
+  updateDisableCommentingMessage = value => {
+    const updater = { disableCommentingMessage: { $set: value } };
     this.props.updatePending({ updater });
   };
 
@@ -107,7 +121,7 @@ class StreamSettings extends React.Component {
   };
 
   render() {
-    const { settings, data, root, errors, updatePending } = this.props;
+    const { settings, slotPassthrough, errors } = this.props;
 
     return (
       <ConfigurePage title={t('configure.stream_settings')}>
@@ -164,7 +178,7 @@ class StreamSettings extends React.Component {
         >
           <p>{t('configure.closed_comments_desc')}</p>
           <div>
-            <TextArea
+            <MarkdownEditor
               className={styles.descriptionBox}
               onChange={this.updateClosedMessage}
               value={settings.closedMessage}
@@ -191,6 +205,25 @@ class StreamSettings extends React.Component {
           />
           &nbsp;
           {t('configure.edit_comment_timeframe_text_post')}
+        </ConfigureCard>
+        <ConfigureCard
+          checked={settings.disableCommenting}
+          onCheckbox={this.updateDisableCommenting}
+          title={t('configure.disable_commenting_title')}
+        >
+          <p>{t('configure.disable_commenting_desc')}</p>
+          <div
+            className={cn(
+              styles.configSettingDisableCommenting,
+              settings.disableCommenting ? null : styles.hidden
+            )}
+          >
+            <MarkdownEditor
+              className={styles.descriptionBox}
+              onChange={this.updateDisableCommentingMessage}
+              value={settings.disableCommentingMessage}
+            />
+          </div>
         </ConfigureCard>
         <ConfigureCard
           checked={settings.autoCloseStream}
@@ -220,13 +253,7 @@ class StreamSettings extends React.Component {
           </div>
         </ConfigureCard>
         {/* the above card should be the last one if at all possible because of z-index issues with the selects */}
-        <Slot
-          fill="adminStreamSettings"
-          data={data}
-          queryData={{ root, settings }}
-          updatePending={updatePending}
-          errors={errors}
-        />
+        <Slot fill="adminStreamSettings" passthrough={slotPassthrough} />
       </ConfigurePage>
     );
   }
@@ -235,9 +262,8 @@ class StreamSettings extends React.Component {
 StreamSettings.propTypes = {
   updatePending: PropTypes.func.isRequired,
   errors: PropTypes.object.isRequired,
-  data: PropTypes.object.isRequired,
-  root: PropTypes.object.isRequired,
   settings: PropTypes.object.isRequired,
+  slotPassthrough: PropTypes.object.isRequired,
 };
 
 export default StreamSettings;

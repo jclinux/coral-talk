@@ -1,12 +1,17 @@
 const passport = require('passport');
 const { set, get } = require('lodash');
 const UsersService = require('./users');
-const SettingsService = require('./settings');
+const Settings = require('./settings');
 const TokensService = require('./tokens');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const LocalStrategy = require('passport-local').Strategy;
-const errors = require('../errors');
+const {
+  ErrLoginAttemptMaximumExceeded,
+  ErrNotAuthorized,
+  ErrAuthentication,
+  ErrNotVerified,
+} = require('../errors');
 const uuid = require('uuid');
 const debug = require('debug')('talk:services:passport');
 const bowser = require('bowser');
@@ -14,6 +19,7 @@ const ms = require('ms');
 const _ = require('lodash');
 const { attachStaticLocals } = require('../middleware/staticTemplate');
 const { encodeJSONForHTML } = require('./response');
+const { STATIC_URL, BASE_URL } = require('../url');
 
 // Create a redis client to use for authentication.
 const { createClientFactory } = require('./redis');
@@ -75,7 +81,7 @@ const HandleGenerateCredentials = (req, res, next) => (err, user) => {
   }
 
   if (!user) {
-    return next(errors.ErrNotAuthorized);
+    return next(new ErrNotAuthorized());
   }
 
   // Generate the token to re-issue to the frontend.
@@ -91,6 +97,15 @@ const HandleGenerateCredentials = (req, res, next) => (err, user) => {
 };
 
 /**
+ * authPopupCallbackCSP is the header sent via Content-Security-Policy when
+ * a social callback request is being made.
+ */
+const authPopupCallbackCSP = (() =>
+  STATIC_URL && BASE_URL !== STATIC_URL
+    ? `default-src 'self' ${STATIC_URL.replace(/\/$/, '')};`
+    : "default-src 'self';")();
+
+/**
  * Returns the response to the login attempt via a popup callback with some JS.
  */
 const HandleAuthPopupCallback = (req, res, next) => (err, user) => {
@@ -99,7 +114,7 @@ const HandleAuthPopupCallback = (req, res, next) => (err, user) => {
   res.header('Pragma', 'no-cache');
 
   // Ensure the only scripts that can run here are those on the Talk domain.
-  res.header('Content-Security-Policy', "default-src 'self';");
+  res.header('Content-Security-Policy', authPopupCallbackCSP);
 
   // Attach static locals to the response locals object.
   attachStaticLocals(res.locals);
@@ -108,14 +123,14 @@ const HandleAuthPopupCallback = (req, res, next) => (err, user) => {
   res.locals.encodeJSONForHTML = encodeJSONForHTML;
 
   if (err) {
-    return res.render('auth-callback', {
+    return res.render('auth-callback.njk', {
       auth: { err, data: null },
     });
   }
 
   if (!user) {
-    return res.render('auth-callback', {
-      auth: { err: errors.ErrNotAuthorized, data: null },
+    return res.render('auth-callback.njk', {
+      auth: { err: new ErrNotAuthorized(), data: null },
     });
   }
 
@@ -125,7 +140,7 @@ const HandleAuthPopupCallback = (req, res, next) => (err, user) => {
   SetTokenForSafari(req, res, token);
 
   // We logged in the user! Let's send back the user data.
-  res.render('auth-callback', {
+  res.render('auth-callback.njk', {
     auth: { err: null, data: { user, token } },
   });
 };
@@ -141,7 +156,7 @@ async function ValidateUserLogin(loginProfile, user, done) {
   }
 
   if (user.disabled) {
-    return done(new errors.ErrAuthentication('Account disabled'));
+    return done(new ErrAuthentication('Account disabled'));
   }
 
   // If the user isn't a local user (i.e., a social user).
@@ -150,7 +165,9 @@ async function ValidateUserLogin(loginProfile, user, done) {
   }
 
   // The user is a local user, check if we need email confirmation.
-  const { requireEmailConfirmation = false } = await SettingsService.retrieve();
+  const { requireEmailConfirmation = false } = await Settings.select(
+    'requireEmailConfirmation'
+  );
 
   // If we have the requirement of checking that emails for users are
   // verified, then we need to check the email address to ensure that it has
@@ -167,7 +184,7 @@ async function ValidateUserLogin(loginProfile, user, done) {
     // If the profile doesn't have a metadata field, or it does not have a
     // confirmed_at field, or that field is null, then send them back.
     if (_.get(profile, 'metadata.confirmed_at', null) === null) {
-      return done(errors.ErrNotVerified);
+      return done(new ErrNotVerified());
     }
   }
 
@@ -184,6 +201,7 @@ async function ValidateUserLogin(loginProfile, user, done) {
 const HandleLogout = async (req, res, next) => {
   try {
     const { jwt } = req;
+
     if (jwt) {
       const now = new Date();
       const expiry = (jwt.exp - now.getTime() / 1000).toFixed(0);
@@ -207,7 +225,7 @@ const checkGeneralTokenBlacklist = jwt =>
     .get(`jtir[${jwt.jti}]`)
     .then(expiry => {
       if (expiry != null) {
-        throw new errors.ErrAuthentication('token was revoked');
+        throw new ErrAuthentication('token was revoked');
       }
     });
 
@@ -390,7 +408,7 @@ const HandleFailedAttempt = async (email, userNeedsRecaptcha) => {
     await UsersService.recordLoginAttempt(email);
   } catch (err) {
     if (
-      err === errors.ErrLoginAttemptMaximumExceeded &&
+      err instanceof ErrLoginAttemptMaximumExceeded &&
       !userNeedsRecaptcha &&
       RECAPTCHA_ENABLED
     ) {
@@ -446,7 +464,7 @@ passport.use(
         try {
           await UsersService.checkLoginAttempts(email);
         } catch (err) {
-          if (err === errors.ErrLoginAttemptMaximumExceeded) {
+          if (err instanceof ErrLoginAttemptMaximumExceeded) {
             // This says, we didn't have a recaptcha, yet we needed one.. Reject
             // here.
 

@@ -9,9 +9,11 @@ import ApproveButton from './ApproveButton';
 
 const UserDetailCommentList = props => {
   const {
-    data,
     root,
-    root: { user, comments: { nodes, hasNextPage } },
+    root: {
+      user,
+      comments: { nodes, hasNextPage },
+    },
     acceptComment,
     rejectComment,
     selectedCommentIds,
@@ -70,7 +72,6 @@ const UserDetailCommentList = props => {
             key={comment.id}
             user={user}
             root={root}
-            data={data}
             comment={comment}
             acceptComment={acceptComment}
             rejectComment={rejectComment}
@@ -93,7 +94,6 @@ UserDetailCommentList.propTypes = {
   root: PropTypes.object.isRequired,
   acceptComment: PropTypes.func.isRequired,
   rejectComment: PropTypes.func.isRequired,
-  data: PropTypes.object.isRequired,
   selectedCommentIds: PropTypes.array.isRequired,
   viewUserDetail: PropTypes.any.isRequired,
   loadMore: PropTypes.any.isRequired,

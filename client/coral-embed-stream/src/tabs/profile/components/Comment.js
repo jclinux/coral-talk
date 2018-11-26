@@ -9,12 +9,13 @@ import cn from 'classnames';
 import { getTotalReactionsCount } from 'coral-framework/utils';
 
 import t from 'coral-framework/services/i18n';
+import { buildCommentURL } from 'coral-framework/utils/url';
 
 class Comment extends React.Component {
   render() {
-    const { comment, link, data, root } = this.props;
+    const { comment, root } = this.props;
     const reactionCount = getTotalReactionsCount(comment.action_summaries);
-    const queryData = { root, comment, asset: comment.asset };
+    const slotPassthrough = { root, comment, asset: comment.asset };
 
     return (
       <div className={styles.myComment}>
@@ -23,8 +24,8 @@ class Comment extends React.Component {
             fill="commentContent"
             defaultComponent={CommentContent}
             className={cn(styles.commentBody, 'my-comment-body')}
-            data={data}
-            queryData={queryData}
+            passthrough={slotPassthrough}
+            size={1}
           />
           <div className={cn(styles.commentSummary, 'comment-summary')}>
             <span
@@ -34,7 +35,7 @@ class Comment extends React.Component {
                 { [styles.countZero]: reactionCount === 0 }
               )}
             >
-              <Icon name="thumb_up" />
+              <Icon name="whatshot" />
               <span
                 className={cn(
                   styles.reactionCount,
@@ -66,8 +67,8 @@ class Comment extends React.Component {
           <div className="my-comment-asset">
             <a
               className={cn(styles.assetURL, 'my-comment-anchor')}
-              href="#"
-              onClick={link(`${comment.asset.url}`)}
+              href={this.props.comment.asset.url}
+              target="_parent"
             >
               {t('common.story')}:{' '}
               {comment.asset.title ? comment.asset.title : comment.asset.url}
@@ -78,8 +79,12 @@ class Comment extends React.Component {
           <ul>
             <li>
               <a
-                onClick={link(`${comment.asset.url}?commentId=${comment.id}`)}
                 className={styles.viewLink}
+                href={buildCommentURL(
+                  this.props.comment.asset.url,
+                  this.props.comment.id
+                )}
+                target="_parent"
               >
                 <Icon name="open_in_new" className={styles.iconView} />
                 {t('view_conversation')}
@@ -91,9 +96,10 @@ class Comment extends React.Component {
                 fill="historyCommentTimestamp"
                 defaultComponent={CommentTimestamp}
                 className={'talk-history-comment-published-date'}
-                created_at={comment.created_at}
-                data={data}
-                queryData={queryData}
+                passthrough={{
+                  created_at: comment.created_at,
+                  ...slotPassthrough,
+                }}
                 inline
               />
             </li>
@@ -105,10 +111,9 @@ class Comment extends React.Component {
 }
 
 Comment.propTypes = {
-  comment: PropTypes.shape({
-    id: PropTypes.string,
-    body: PropTypes.string,
-  }).isRequired,
+  comment: PropTypes.object.isRequired,
+  navigate: PropTypes.func.isRequired,
+  root: PropTypes.object.isRequired,
 };
 
 export default Comment;
