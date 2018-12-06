@@ -1,6 +1,6 @@
 {
   "name": "talk",
-  "version": "4.6.5",
+  "version": "4.6.6",
   "description": "A better commenting experience from Mozilla, The New York Times, and the Washington Post. https://coralproject.net",
   "main": "app.js",
   "private": true,
@@ -58,6 +58,7 @@
   "dependencies": {
     "@coralproject/gql-merge": "^0.1.0",
     "@coralproject/graphql-anywhere-optimized": "^0.1.0",
+    "@coralproject/talk-plugin-toxic-comments-study": "^0.0.6",
     "apollo-client": "^1.9.1",
     "apollo-engine": "^0.8.1",
     "apollo-server-express": "^1.2.0",
