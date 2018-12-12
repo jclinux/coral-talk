@@ -7,13 +7,13 @@ import IfSlotIsNotEmpty from 'coral-framework/components/IfSlotIsNotEmpty';
 
 class CommentDetails extends Component {
   state = {
-    showDetail: false,
+    showDetail: true,
   };
 
   constructor() {
     super();
     this.state = {
-      showDetail: false,
+      showDetail: true,
     };
   }
 
